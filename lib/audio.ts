@@ -466,7 +466,7 @@ async function playAudioWithReverb(padData: PadData): Promise<void> {
 
     // Create reverb (ConvolverNode)
     const convolver = audioContext.createConvolver();
-    const reverbTime = 2.0; // seconds
+    const reverbTime = 2.5; // seconds
     const impulseLength = Math.floor(audioBuffer.sampleRate * reverbTime);
     const impulse = audioContext.createBuffer(2, impulseLength, audioBuffer.sampleRate);
 
