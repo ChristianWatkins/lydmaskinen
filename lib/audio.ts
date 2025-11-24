@@ -1,5 +1,6 @@
 import { PadData } from '@/types';
 import { Howl } from 'howler';
+import Pizzicato from 'pizzicato';
 
 // Store Howl instances for each pad
 const padSounds: Map<string, Howl> = new Map();
@@ -464,30 +465,40 @@ async function playAudioWithReverb(padData: PadData): Promise<void> {
     source.buffer = audioBuffer;
     source.playbackRate.value = rate;
 
-    // Create reverb (ConvolverNode)
+    // Create reverb using Pizzicato.js algorithm
     const convolver = audioContext.createConvolver();
-    const reverbTime = 2.0; // seconds
+    const reverbTime = 2.5; // seconds (Pizzicato time parameter)
+    const reverbDecay = 0.8; // Pizzicato decay parameter (0-10, default 0.01)
+    const reverbMix = 0.4; // Pizzicato mix parameter (0-1, wet signal)
+    
     const impulseLength = Math.floor(audioBuffer.sampleRate * reverbTime);
     const impulse = audioContext.createBuffer(2, impulseLength, audioBuffer.sampleRate);
 
-    // Generate impulse response
+    // Generate impulse response using Pizzicato algorithm
+    // Decay is converted from Pizzicato's 0-10 scale to exponential decay
+    // Higher decay values = slower fade (longer reverb tail)
+    const decayFactor = Math.max(0.01, Math.min(10, reverbDecay));
+    const decayExponent = 1 / (1 + decayFactor); // Convert to exponential decay
+    
     for (let channel = 0; channel < impulse.numberOfChannels; channel++) {
       const channelData = impulse.getChannelData(channel);
       for (let i = 0; i < impulseLength; i++) {
-        const decay = Math.pow(1 - i / impulseLength, 0.3);
+        const normalizedPosition = i / impulseLength;
+        // Pizzicato-style decay: exponential decay based on decay parameter
+        const decay = Math.pow(1 - normalizedPosition, decayExponent);
         channelData[i] = (Math.random() * 2 - 1) * decay;
       }
     }
 
     convolver.buffer = impulse;
 
-    // Create gain nodes for dry/wet mix
+    // Create gain nodes for dry/wet mix (Pizzicato mix parameter)
     const dryGain = audioContext.createGain();
     const wetGain = audioContext.createGain();
     const masterGain = audioContext.createGain();
     
-    dryGain.gain.value = 0.6;
-    wetGain.gain.value = 0.4;
+    dryGain.gain.value = 1 - reverbMix; // Dry signal
+    wetGain.gain.value = reverbMix; // Wet signal (reverb)
     masterGain.gain.value = volume;
 
     // Connect: source -> dry -> master, source -> convolver -> wet -> master -> destination
