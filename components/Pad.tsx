@@ -154,14 +154,14 @@ export default function Pad({
     e.preventDefault();
     e.stopPropagation();
     
-    // Cycle through: none → smurf → troll → none
+    // Cycle through: smurf (baby) → none (neutral) → troll → smurf
     let newEffect: PadData['effect'];
-    if (padData.effect === 'none') {
-      newEffect = 'smurf';
-    } else if (padData.effect === 'smurf') {
-      newEffect = 'troll';
+    if (padData.effect === 'smurf') {
+      newEffect = 'none'; // baby → neutral
+    } else if (padData.effect === 'none') {
+      newEffect = 'troll'; // neutral → troll
     } else {
-      newEffect = 'none';
+      newEffect = 'smurf'; // troll → baby
     }
     
     onSaveEdit(padData.id, { effect: newEffect });
