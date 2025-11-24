@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { PadData, Mode } from '@/types';
 import Pad from '@/components/Pad';
-import { playAudio, saveToStorage, loadFromStorage, initializeAudioContext } from '@/lib/audio';
+import { playAudio, saveToStorage, loadFromStorage } from '@/lib/audio';
 
 export default function Home() {
   const [mode, setMode] = useState<Mode>('play');
@@ -17,30 +17,6 @@ export default function Home() {
   });
   const [recordingPadId, setRecordingPadId] = useState<string | null>(null);
   const [playingPadId, setPlayingPadId] = useState<string | null>(null);
-
-  // Add a click listener to the whole page to initialize AudioContext on first interaction
-  useEffect(() => {
-    const handleFirstClick = async () => {
-      console.log('First user interaction detected, initializing AudioContext...');
-      try {
-        await initializeAudioContext();
-        console.log('AudioContext initialized on first interaction');
-      } catch (error) {
-        console.error('Failed to initialize AudioContext:', error);
-      }
-      // Remove the listener after first click
-      document.removeEventListener('click', handleFirstClick);
-      document.removeEventListener('touchstart', handleFirstClick);
-    };
-    
-    document.addEventListener('click', handleFirstClick);
-    document.addEventListener('touchstart', handleFirstClick);
-    
-    return () => {
-      document.removeEventListener('click', handleFirstClick);
-      document.removeEventListener('touchstart', handleFirstClick);
-    };
-  }, []);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -132,9 +108,7 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <span className="text-gray-700 font-semibold text-lg">Opptak</span>
               <button
-                onClick={async () => {
-                  // Always initialize AudioContext when toggling modes
-                  await initializeAudioContext();
+                onClick={() => {
                   // Toggle between record and play (not edit)
                   if (mode === 'record') {
                     setMode('play');
@@ -159,9 +133,7 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <span className="text-gray-700 font-semibold text-lg">Rediger</span>
               <button
-                onClick={async () => {
-                  // Always initialize AudioContext when toggling modes
-                  await initializeAudioContext();
+                onClick={() => {
                   setMode(mode === 'edit' ? 'play' : 'edit');
                 }}
                 className={`

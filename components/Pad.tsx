@@ -3,7 +3,7 @@
 import { PadData, Mode } from '@/types';
 import { useState, useEffect } from 'react';
 import { RotateCcw, Play } from 'lucide-react';
-import { initializeAudioContext } from '@/lib/audio';
+import { getAudioContext, ensureAudioContextRunning } from '@/lib/audio';
 
 interface PadProps {
   padData: PadData;
@@ -41,26 +41,33 @@ export default function Pad({
     e.preventDefault();
     setIsPressed(true);
 
-    console.log('handleStart called, mode:', mode, 'padId:', padData.id);
+    console.log('👆 handleStart called, mode:', mode, 'padId:', padData.id);
     
     if (mode === 'record') {
       // Start recording
-      console.log('Starting recording for pad:', padData.id);
+      console.log('🎙 Starting recording for pad:', padData.id);
       onRecordStart(padData.id);
       const { startRecording } = await import('@/lib/audio');
       const started = await startRecording();
       setIsRecordingStarted(started);
       console.log('Recording started:', started);
     } else if (mode === 'play') {
-      // CRITICAL FOR MOBILE: Pre-initialize AudioContext from user event to satisfy autoplay policy
-      // This ensures AudioContext is created in the same callstack as the touch/click event
-      console.log('Pre-initializing AudioContext from user interaction...');
-      // Fire and forget - let it initialize in the background
-      // The actual playback will wait for it to complete
-      initializeAudioContext();
+      // CRITICAL FOR MOBILE: Create AudioContext SYNCHRONOUSLY in user event handler
+      // This satisfies iOS autoplay policy requirements
+      console.log('🔊 User interaction - initializing audio...');
       
-      // Play audio - only in play mode
-      console.log('Attempting to play audio for pad:', padData.id, 'hasAudio:', !!padData.audioBlob);
+      // Create context synchronously (required for iOS)
+      getAudioContext();
+      
+      // Resume asynchronously (but initiated from user event)
+      ensureAudioContextRunning().then(() => {
+        console.log('✓ AudioContext ready from user interaction');
+      }).catch(err => {
+        console.error('✗ Failed to ensure AudioContext running:', err);
+      });
+      
+      // Play audio - onPlay will wait for AudioContext to be ready
+      console.log('🎵 Attempting to play audio for pad:', padData.id, 'hasAudio:', !!padData.audioBlob);
       onPlay(padData.id);
     }
     // Edit mode is handled separately
