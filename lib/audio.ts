@@ -283,8 +283,9 @@ export async function playAudio(padData: PadData): Promise<void> {
         rate = 0.6; // Lower pitch, slower
       }
 
-      // Get volume from padData (default to 1.0 if not set)
-      const volume = padData.volume !== undefined ? padData.volume : 1.0;
+      // Get volume from padData (0-10 range, convert to 0.0-1.0 for Howler)
+      const volumeRaw = padData.volume !== undefined ? padData.volume : 10;
+      const volume = Math.max(0, Math.min(1.0, volumeRaw / 10));
 
       // Create new Howl instance
       const sound = new Howl({
@@ -378,7 +379,7 @@ export async function saveToStorage(pads: PadData[]): Promise<void> {
         audioBase64,
         effect: pad.effect,
         reverse: pad.reverse,
-        volume: pad.volume !== undefined ? pad.volume : 1.0,
+        volume: pad.volume !== undefined ? pad.volume : 10,
       };
     })
   );
@@ -402,7 +403,7 @@ export function loadFromStorage(): Partial<PadData>[] {
         id: item.id,
         effect: item.effect || 'none',
         reverse: item.reverse || false,
-        volume: item.volume !== undefined ? item.volume : 1.0,
+        volume: item.volume !== undefined ? item.volume : 10,
       };
 
       if (item.audioBase64) {

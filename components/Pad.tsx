@@ -27,22 +27,69 @@ export default function Pad({
   const [isRecordingStarted, setIsRecordingStarted] = useState(false);
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
   const [showVolumeIndicator, setShowVolumeIndicator] = useState(false);
+  const [currentVolume, setCurrentVolume] = useState<number>(padData.volume !== undefined ? padData.volume : 10);
+
+  // Sync currentVolume with padData.volume
+  useEffect(() => {
+    setCurrentVolume(padData.volume !== undefined ? padData.volume : 10);
+  }, [padData.volume]);
 
   const handleStart = async (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     setIsPressed(true);
 
     // Track touch start position for swipe detection
-    if ('touches' in e && e.touches.length > 0) {
-      setTouchStartY(e.touches[0].clientY);
-    } else if ('clientY' in e) {
-      setTouchStartY(e.clientY);
+    const startY = ('touches' in e && e.touches.length > 0) 
+      ? e.touches[0].clientY 
+      : ('clientY' in e ? e.clientY : null);
+    
+    if (startY !== null) {
+      setTouchStartY(startY);
+      setCurrentVolume(padData.volume !== undefined ? padData.volume : 10);
     }
 
     console.log('👆 handleStart called, padId:', padData.id);
     
     // Don't play immediately - wait to see if it's a swipe gesture
     // Play will happen in handleEnd if no swipe detected
+  };
+
+  const handleMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (touchStartY === null) return;
+    
+    e.preventDefault();
+    
+    const currentY = ('touches' in e && e.touches.length > 0)
+      ? e.touches[0].clientY
+      : ('clientY' in e ? e.clientY : null);
+    
+    if (currentY === null) return;
+
+    const deltaY = touchStartY - currentY; // Positive = swipe up, Negative = swipe down
+    const swipeThreshold = 10; // Lower threshold for real-time updates
+    
+    if (Math.abs(deltaY) > swipeThreshold) {
+      // Calculate volume based on swipe distance
+      const pixelsPerStep = 20; // Pixels needed for one volume step
+      const steps = Math.floor(Math.abs(deltaY) / pixelsPerStep);
+      const baseVolume = padData.volume !== undefined ? padData.volume : 10;
+      
+      let newVolume: number;
+      if (deltaY > 0) {
+        // Swipe up - increase volume
+        newVolume = Math.min(10, baseVolume + steps);
+      } else {
+        // Swipe down - decrease volume
+        newVolume = Math.max(0, baseVolume - steps);
+      }
+      
+      // Update volume in real-time
+      setCurrentVolume(newVolume);
+      onSaveEdit(padData.id, { volume: newVolume });
+      
+      // Show volume indicator during gesture
+      setShowVolumeIndicator(true);
+    }
   };
 
   const handleRecordStart = async (e: React.MouseEvent | React.TouchEvent) => {
@@ -80,45 +127,13 @@ export default function Pad({
   const handleEnd = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     
-    let wasSwipe = false;
+    const wasSwipe = showVolumeIndicator; // If indicator is showing, it was a swipe
     
-    // Check for swipe gesture
-    if (touchStartY !== null) {
-      let endY: number;
-      if ('changedTouches' in e && e.changedTouches.length > 0) {
-        endY = e.changedTouches[0].clientY;
-      } else if ('clientY' in e) {
-        endY = e.clientY;
-      } else {
-        setIsPressed(false);
-        setTouchStartY(null);
-        return;
-      }
-
-      const deltaY = touchStartY - endY; // Positive = swipe up, Negative = swipe down
-      const swipeThreshold = 30; // Minimum pixels for a swipe
-
-      if (Math.abs(deltaY) > swipeThreshold) {
-        // Swipe detected - adjust volume
-        wasSwipe = true;
-        const currentVolume = padData.volume !== undefined ? padData.volume : 1.0;
-        const volumeStep = 0.1;
-        let newVolume: number;
-
-        if (deltaY > 0) {
-          // Swipe up - increase volume
-          newVolume = Math.min(1.0, currentVolume + volumeStep);
-        } else {
-          // Swipe down - decrease volume
-          newVolume = Math.max(0.0, currentVolume - volumeStep);
-        }
-
-        onSaveEdit(padData.id, { volume: newVolume });
-        
-        // Show volume indicator briefly
-        setShowVolumeIndicator(true);
-        setTimeout(() => setShowVolumeIndicator(false), 1000);
-      }
+    // Hide volume indicator after a brief delay
+    if (wasSwipe) {
+      setTimeout(() => setShowVolumeIndicator(false), 1000);
+    } else {
+      setShowVolumeIndicator(false);
     }
 
     // Only play audio if it wasn't a swipe gesture
@@ -236,9 +251,11 @@ export default function Pad({
           <button
             className="w-full h-full rounded-2xl"
             onMouseDown={handleStart}
+            onMouseMove={handleMove}
             onMouseUp={handleEnd}
             onMouseLeave={handleEnd}
             onTouchStart={handleStart}
+            onTouchMove={handleMove}
             onTouchEnd={handleEnd}
           >
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -255,17 +272,17 @@ export default function Pad({
                 </div>
               )}
               
-              {/* Volume indicator */}
+              {/* Volume indicator - shows during gesture */}
               {showVolumeIndicator && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm rounded-2xl">
-                  <div className="text-white text-2xl font-bold mb-2">
-                    🔊 {Math.round((padData.volume !== undefined ? padData.volume : 1.0) * 100)}%
+                  <div className="text-white text-3xl font-bold mb-2">
+                    🔊 {currentVolume}
                   </div>
                   {/* Volume bar */}
-                  <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
+                  <div className="w-32 h-3 bg-white/20 rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-white rounded-full transition-all duration-200"
-                      style={{ width: `${(padData.volume !== undefined ? padData.volume : 1.0) * 100}%` }}
+                      className="h-full bg-white rounded-full transition-all duration-100"
+                      style={{ width: `${(currentVolume / 10) * 100}%` }}
                     />
                   </div>
                 </div>

@@ -4,6 +4,6 @@ export interface PadData {
   audioUrl?: string;
   effect: 'none' | 'smurf' | 'troll';
   reverse: boolean;
-  volume: number; // 0.0 to 1.0
+  volume: number; // 0 to 10
 }
 
