@@ -87,15 +87,34 @@ export default function Home() {
   };
 
   const handlePlay = async (padId: string) => {
+    console.log('handlePlay called for pad:', padId);
     const pad = pads.find(p => p.id === padId);
-    if (!pad || !pad.audioBlob) return;
+    
+    if (!pad) {
+      console.warn('Pad not found:', padId);
+      return;
+    }
+    
+    if (!pad.audioBlob) {
+      console.warn('No audio recorded for pad:', padId);
+      return;
+    }
+    
+    console.log('Playing pad with audio blob size:', pad.audioBlob.size);
 
     // Initialize audio context on first interaction
-    await initializeAudioContext();
+    try {
+      await initializeAudioContext();
+      console.log('AudioContext initialized for playback');
+    } catch (error) {
+      console.error('Failed to initialize AudioContext:', error);
+      return;
+    }
 
     setPlayingPadId(padId);
     try {
       await playAudio(pad);
+      console.log('Playback completed successfully');
     } catch (error) {
       console.error('Playback error:', error);
     } finally {

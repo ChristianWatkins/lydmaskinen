@@ -40,32 +40,22 @@ export default function Pad({
     e.preventDefault();
     setIsPressed(true);
 
-    console.log('handleStart called, mode:', mode);
-    
-    // Always initialize AudioContext on first interaction
-    const { initializeAudioContext } = await import('@/lib/audio');
-    const context = await initializeAudioContext();
-    
-    // Ensure context is running before proceeding
-    if (context.state === 'suspended') {
-      console.log('AudioContext suspended in handleStart, resuming...');
-      await context.resume();
-      console.log('AudioContext state after resume in handleStart:', context.state);
-    }
+    console.log('handleStart called, mode:', mode, 'padId:', padData.id);
     
     if (mode === 'record') {
-      // Start recording - don't play audio
+      // Start recording
       console.log('Starting recording for pad:', padData.id);
       onRecordStart(padData.id);
       const { startRecording } = await import('@/lib/audio');
       const started = await startRecording();
       setIsRecordingStarted(started);
+      console.log('Recording started:', started);
     } else if (mode === 'play') {
       // Play audio - only in play mode
-      console.log('Playing audio for pad:', padData.id);
+      console.log('Attempting to play audio for pad:', padData.id, 'hasAudio:', !!padData.audioBlob);
       onPlay(padData.id);
     }
-    // Edit mode is handled by handleClick
+    // Edit mode is handled separately
   };
 
   const handleEnd = async (e: React.MouseEvent | React.TouchEvent) => {
