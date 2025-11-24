@@ -1,65 +1,167 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+import { PadData, Mode } from '@/types';
+import Pad from '@/components/Pad';
+import { playAudio, saveToStorage, loadFromStorage, initializeAudioContext } from '@/lib/audio';
 
 export default function Home() {
+  const [mode, setMode] = useState<Mode>('play');
+  const [pads, setPads] = useState<PadData[]>(() => {
+    // Initialize 6 pads
+    return Array.from({ length: 6 }, (_, i) => ({
+      id: `pad-${i}`,
+      effect: 'none' as const,
+      reverse: false,
+    }));
+  });
+  const [recordingPadId, setRecordingPadId] = useState<string | null>(null);
+  const [playingPadId, setPlayingPadId] = useState<string | null>(null);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const stored = loadFromStorage();
+    if (stored.length > 0) {
+      setPads(prevPads => {
+        return prevPads.map((pad, index) => {
+          const storedPad = stored[index];
+          if (storedPad && storedPad.audioUrl) {
+            // Convert URL back to blob if needed
+            return {
+              ...pad,
+              ...storedPad,
+            };
+          }
+          return pad;
+        });
+      });
+    }
+  }, []);
+
+  // Save to localStorage whenever pads change
+  useEffect(() => {
+    const saveData = async () => {
+      await saveToStorage(pads);
+    };
+    saveData();
+  }, [pads]);
+
+  const handleRecordStart = (padId: string) => {
+    setRecordingPadId(padId);
+  };
+
+  const handleRecord = async (padId: string, blob: Blob) => {
+    const audioUrl = URL.createObjectURL(blob);
+    setPads(prevPads =>
+      prevPads.map(pad =>
+        pad.id === padId
+          ? { ...pad, audioBlob: blob, audioUrl }
+          : pad
+      )
+    );
+    setRecordingPadId(null);
+  };
+
+  const handlePlay = async (padId: string) => {
+    const pad = pads.find(p => p.id === padId);
+    if (!pad || !pad.audioBlob) return;
+
+    // Initialize audio context on first interaction
+    await initializeAudioContext();
+
+    setPlayingPadId(padId);
+    try {
+      await playAudio(pad);
+    } catch (error) {
+      console.error('Playback error:', error);
+    } finally {
+      setPlayingPadId(null);
+    }
+  };
+
+  const handleSaveEdit = (padId: string, updates: Partial<PadData>) => {
+    setPads(prevPads =>
+      prevPads.map(pad =>
+        pad.id === padId ? { ...pad, ...updates } : pad
+      )
+    );
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-orange-100 p-4">
+      <div className="max-w-md mx-auto">
+        {/* Header */}
+        <div className="text-center mb-6">
+          <h1 className="text-4xl font-bold text-gray-800">🎵 LYDMASKINEN</h1>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+
+        {/* Mode Toggle */}
+        <div className="mb-6 bg-white/80 backdrop-blur-sm rounded-2xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-gray-700 font-semibold text-lg">Opptak</span>
+              <button
+                onClick={() => {
+                  initializeAudioContext();
+                  setMode(mode === 'record' ? 'play' : 'record');
+                }}
+                className={`
+                  relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-200 ease-in-out cursor-pointer
+                  ${mode === 'record' ? 'bg-red-500' : 'bg-gray-300'}
+                  focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500
+                `}
+              >
+                <span
+                  className={`
+                    inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out
+                    ${mode === 'record' ? 'translate-x-7' : 'translate-x-1'}
+                  `}
+                />
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-gray-700 font-semibold text-lg">Rediger</span>
+              <button
+                onClick={() => {
+                  initializeAudioContext();
+                  setMode(mode === 'edit' ? 'play' : 'edit');
+                }}
+                className={`
+                  relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-200 ease-in-out cursor-pointer
+                  ${mode === 'edit' ? 'bg-purple-500' : 'bg-gray-300'}
+                  focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500
+                `}
+              >
+                <span
+                  className={`
+                    inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out
+                    ${mode === 'edit' ? 'translate-x-7' : 'translate-x-1'}
+                  `}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Pad Grid */}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          {pads.map((pad) => (
+            <Pad
+              key={pad.id}
+              padData={pad}
+              mode={mode}
+              onRecordStart={handleRecordStart}
+              onRecord={handleRecord}
+              onPlay={handlePlay}
+              onSaveEdit={handleSaveEdit}
+              isRecording={recordingPadId === pad.id}
+              isPlaying={playingPadId === pad.id}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          ))}
         </div>
-      </main>
+
+      </div>
+
     </div>
   );
 }
