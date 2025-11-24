@@ -1,6 +1,7 @@
 import { PadData } from '@/types';
 
 let audioContext: AudioContext | null = null;
+let isAudioUnlocked = false;
 
 /**
  * Gets the AudioContext instance, creating it if needed
@@ -15,6 +16,48 @@ export function getAudioContext(): AudioContext {
 }
 
 /**
+ * Check if audio is unlocked
+ */
+export function isAudioReady(): boolean {
+  return isAudioUnlocked && audioContext !== null && audioContext.state === 'running';
+}
+
+/**
+ * Unlocks audio - MUST be called from a direct user interaction (button click/tap)
+ * This is the proper way to initialize audio on mobile browsers
+ */
+export async function unlockAudio(): Promise<boolean> {
+  console.log('🔓 Unlocking audio...');
+  
+  try {
+    // Create context if needed
+    const context = getAudioContext();
+    console.log('AudioContext state before unlock:', context.state);
+    
+    // Resume context
+    if (context.state === 'suspended') {
+      console.log('Resuming suspended AudioContext...');
+      await context.resume();
+      console.log('✓ AudioContext resumed. State:', context.state);
+    }
+    
+    // Play a silent sound to fully unlock (iOS Safari requirement)
+    const buffer = context.createBuffer(1, 1, 22050);
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(context.destination);
+    source.start(0);
+    
+    isAudioUnlocked = true;
+    console.log('✅ Audio unlocked successfully!');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to unlock audio:', error);
+    return false;
+  }
+}
+
+/**
  * Ensures AudioContext is running - MUST be called from user event handler
  * Returns a promise that resolves when context is running
  */
@@ -23,6 +66,7 @@ export async function ensureAudioContextRunning(): Promise<void> {
   
   if (context.state === 'running') {
     console.log('✓ AudioContext already running');
+    isAudioUnlocked = true;
     return;
   }
   
@@ -30,6 +74,7 @@ export async function ensureAudioContextRunning(): Promise<void> {
     console.log('⏸ AudioContext suspended, resuming...');
     await context.resume();
     console.log('✓ AudioContext resumed. State:', context.state);
+    isAudioUnlocked = true;
   }
   
   if (context.state === 'closed') {
@@ -38,6 +83,7 @@ export async function ensureAudioContextRunning(): Promise<void> {
     if (audioContext.state === 'suspended') {
       await audioContext.resume();
     }
+    isAudioUnlocked = true;
     console.log('✓ New AudioContext created and running');
   }
 }
