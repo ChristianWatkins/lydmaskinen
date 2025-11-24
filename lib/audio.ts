@@ -486,8 +486,8 @@ async function playAudioWithReverb(padData: PadData): Promise<void> {
     const wetGain = audioContext.createGain();
     const masterGain = audioContext.createGain();
     
-    dryGain.gain.value = 0.5;
-    wetGain.gain.value = 0.5;
+    dryGain.gain.value = 0.6;
+    wetGain.gain.value = 0.4;
     masterGain.gain.value = volume;
 
     // Connect: source -> dry -> master, source -> convolver -> wet -> master -> destination
