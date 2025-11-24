@@ -483,11 +483,13 @@ export async function playAudio(padData: PadData): Promise<void> {
     if (context.state !== 'running') {
       console.log('⚠️ AudioContext not running, attempting to resume...');
       await ensureAudioContextRunning();
-      
-      if (context.state !== 'running') {
-        console.error('✗ AudioContext failed to start. State:', context.state);
-        throw new Error(`AudioContext is ${context.state}, cannot play audio`);
-      }
+    }
+    
+    // Check state again after resume attempt
+    const currentState = context.state;
+    if (currentState !== 'running') {
+      console.error('✗ AudioContext failed to start. State:', currentState);
+      throw new Error(`AudioContext is ${currentState}, cannot play audio`);
     }
     
     console.log('✓ AudioContext ready. State:', context.state);
