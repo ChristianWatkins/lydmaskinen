@@ -125,7 +125,7 @@ export async function startRecording(): Promise<boolean> {
 }
 
 export async function stopRecording(): Promise<Blob | null> {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     if (!currentMediaRecorder || !isRecordingActive) {
       // No active recording - this is not an error, just return null
       resolve(null);
@@ -140,7 +140,7 @@ export async function stopRecording(): Promise<Blob | null> {
       return;
     }
 
-    mediaRecorder.onstop = () => {
+    mediaRecorder.onstop = async () => {
       if (currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
         currentStream = null;
@@ -148,11 +148,32 @@ export async function stopRecording(): Promise<Blob | null> {
       
       // Only create blob if we have chunks
       if (recordingChunks.length > 0) {
-        const blob = new Blob(recordingChunks, { type: 'audio/webm' });
-        currentMediaRecorder = null;
-        recordingChunks = [];
-        isRecordingActive = false;
-        resolve(blob);
+        const originalBlob = new Blob(recordingChunks, { type: 'audio/webm' });
+        
+        try {
+          // Decode audio and trim silence
+          const context = await initializeAudioContext();
+          const arrayBuffer = await blobToArrayBuffer(originalBlob);
+          let audioBuffer = await context.decodeAudioData(arrayBuffer);
+          
+          // Trim silence from start and end
+          audioBuffer = await trimSilence(audioBuffer);
+          
+          // Convert back to blob
+          const trimmedBlob = await audioBufferToBlob(audioBuffer);
+          
+          currentMediaRecorder = null;
+          recordingChunks = [];
+          isRecordingActive = false;
+          resolve(trimmedBlob);
+        } catch (error) {
+          console.error('Error trimming audio:', error);
+          // If trimming fails, return original blob
+          currentMediaRecorder = null;
+          recordingChunks = [];
+          isRecordingActive = false;
+          resolve(originalBlob);
+        }
       } else {
         currentMediaRecorder = null;
         recordingChunks = [];
@@ -187,6 +208,126 @@ async function blobToArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
     reader.onerror = reject;
     reader.readAsArrayBuffer(blob);
   });
+}
+
+/**
+ * Trims silence from the beginning and end of audio buffer
+ */
+async function trimSilence(audioBuffer: AudioBuffer, threshold: number = 0.01): Promise<AudioBuffer> {
+  const context = audioContext || await initializeAudioContext();
+  const channelData = audioBuffer.getChannelData(0); // Use first channel for analysis
+  const sampleRate = audioBuffer.sampleRate;
+  
+  // Find start of audio (where amplitude exceeds threshold)
+  let startIndex = 0;
+  for (let i = 0; i < channelData.length; i++) {
+    if (Math.abs(channelData[i]) > threshold) {
+      startIndex = Math.max(0, i - sampleRate * 0.05); // Keep 50ms before first sound
+      break;
+    }
+  }
+  
+  // Find end of audio (where amplitude drops below threshold)
+  let endIndex = channelData.length;
+  for (let i = channelData.length - 1; i >= 0; i--) {
+    if (Math.abs(channelData[i]) > threshold) {
+      endIndex = Math.min(channelData.length, i + sampleRate * 0.05); // Keep 50ms after last sound
+      break;
+    }
+  }
+  
+  // If no significant audio found, return original
+  if (startIndex >= endIndex) {
+    return audioBuffer;
+  }
+  
+  // Create trimmed buffer
+  const trimmedLength = endIndex - startIndex;
+  const trimmedBuffer = context.createBuffer(
+    audioBuffer.numberOfChannels,
+    trimmedLength,
+    sampleRate
+  );
+  
+  // Copy trimmed data from all channels
+  for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+    const originalData = audioBuffer.getChannelData(channel);
+    const trimmedData = trimmedBuffer.getChannelData(channel);
+    for (let i = 0; i < trimmedLength; i++) {
+      trimmedData[i] = originalData[startIndex + i];
+    }
+  }
+  
+  return trimmedBuffer;
+}
+
+/**
+ * Converts AudioBuffer back to Blob
+ */
+async function audioBufferToBlob(audioBuffer: AudioBuffer): Promise<Blob> {
+  const context = audioContext || await initializeAudioContext();
+  
+  // Use OfflineAudioContext to render the buffer
+  const offlineContext = new OfflineAudioContext(
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    audioBuffer.sampleRate
+  );
+  
+  const source = offlineContext.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(offlineContext.destination);
+  source.start(0);
+  
+  const renderedBuffer = await offlineContext.startRendering();
+  
+  // Convert to WAV format
+  const wav = audioBufferToWav(renderedBuffer);
+  return new Blob([wav], { type: 'audio/wav' });
+}
+
+/**
+ * Converts AudioBuffer to WAV format
+ */
+function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
+  const length = buffer.length;
+  const numberOfChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const arrayBuffer = new ArrayBuffer(44 + length * numberOfChannels * 2);
+  const view = new DataView(arrayBuffer);
+  
+  // WAV header
+  const writeString = (offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+  
+  let offset = 0;
+  writeString(offset, 'RIFF'); offset += 4;
+  view.setUint32(offset, 36 + length * numberOfChannels * 2, true); offset += 4;
+  writeString(offset, 'WAVE'); offset += 4;
+  writeString(offset, 'fmt '); offset += 4;
+  view.setUint32(offset, 16, true); offset += 4; // Subchunk1Size
+  view.setUint16(offset, 1, true); offset += 2; // AudioFormat
+  view.setUint16(offset, numberOfChannels, true); offset += 2;
+  view.setUint32(offset, sampleRate, true); offset += 4;
+  view.setUint32(offset, sampleRate * numberOfChannels * 2, true); offset += 4; // ByteRate
+  view.setUint16(offset, numberOfChannels * 2, true); offset += 2; // BlockAlign
+  view.setUint16(offset, 16, true); offset += 2; // BitsPerSample
+  writeString(offset, 'data'); offset += 4;
+  view.setUint32(offset, length * numberOfChannels * 2, true); offset += 4;
+  
+  // Convert float samples to 16-bit PCM
+  for (let i = 0; i < length; i++) {
+    for (let channel = 0; channel < numberOfChannels; channel++) {
+      const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+      offset += 2;
+    }
+  }
+  
+  return arrayBuffer;
 }
 
 /**
