@@ -18,22 +18,28 @@ export default function Home() {
   const [recordingPadId, setRecordingPadId] = useState<string | null>(null);
   const [playingPadId, setPlayingPadId] = useState<string | null>(null);
 
-  // Request microphone permission on mount to activate AudioContext
+  // Add a click listener to the whole page to initialize AudioContext on first interaction
   useEffect(() => {
-    const requestMicrophonePermission = async () => {
+    const handleFirstClick = async () => {
+      console.log('First user interaction detected, initializing AudioContext...');
       try {
-        // Request microphone permission to activate AudioContext
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // Immediately stop the stream - we just needed permission
-        stream.getTracks().forEach(track => track.stop());
-        console.log('Microphone permission granted, AudioContext activated');
+        await initializeAudioContext();
+        console.log('AudioContext initialized on first interaction');
       } catch (error) {
-        console.log('Microphone permission not granted:', error);
-        // This is okay - user can still use the app, just needs to grant permission later
+        console.error('Failed to initialize AudioContext:', error);
       }
+      // Remove the listener after first click
+      document.removeEventListener('click', handleFirstClick);
+      document.removeEventListener('touchstart', handleFirstClick);
     };
     
-    requestMicrophonePermission();
+    document.addEventListener('click', handleFirstClick);
+    document.addEventListener('touchstart', handleFirstClick);
+    
+    return () => {
+      document.removeEventListener('click', handleFirstClick);
+      document.removeEventListener('touchstart', handleFirstClick);
+    };
   }, []);
 
   // Load from localStorage on mount

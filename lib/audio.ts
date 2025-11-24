@@ -3,7 +3,8 @@ import { PadData } from '@/types';
 let audioContext: AudioContext | null = null;
 let isAudioContextInitialized = false;
 
-let keepAliveSource: AudioBufferSourceNode | null = null;
+let keepAliveOscillator: OscillatorNode | null = null;
+let keepAliveGain: GainNode | null = null;
 
 /**
  * Initializes AudioContext on first user interaction (required for autoplay policy)
@@ -11,12 +12,14 @@ let keepAliveSource: AudioBufferSourceNode | null = null;
  */
 export async function initializeAudioContext(): Promise<AudioContext> {
   if (audioContext && isAudioContextInitialized && audioContext.state === 'running') {
+    console.log('AudioContext already running.');
     return audioContext;
   }
 
   // Create new AudioContext if it doesn't exist
   if (!audioContext) {
     audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    console.log('New AudioContext created. State:', audioContext.state);
   }
   
   // Resume if suspended (required for autoplay policy)
@@ -37,21 +40,26 @@ export async function initializeAudioContext(): Promise<AudioContext> {
     }
   }
   
-  // Keep AudioContext alive by playing a very short silent tone
+  // Keep AudioContext alive with a continuous silent oscillator
   // This prevents it from suspending again
-  if (audioContext.state === 'running' && !keepAliveSource) {
+  if (audioContext.state === 'running' && !keepAliveOscillator) {
     try {
-      const buffer = audioContext.createBuffer(1, 1, 22050);
-      keepAliveSource = audioContext.createBufferSource();
-      keepAliveSource.buffer = buffer;
-      keepAliveSource.connect(audioContext.destination);
-      keepAliveSource.start(0);
-      keepAliveSource.onended = () => {
-        keepAliveSource = null;
-      };
-      console.log('AudioContext keep-alive tone started');
+      keepAliveOscillator = audioContext.createOscillator();
+      keepAliveGain = audioContext.createGain();
+      
+      // Set volume to 0 so it's completely silent
+      keepAliveGain.gain.value = 0;
+      
+      // Connect oscillator -> gain -> destination
+      keepAliveOscillator.connect(keepAliveGain);
+      keepAliveGain.connect(audioContext.destination);
+      
+      // Start the oscillator - it will run continuously
+      keepAliveOscillator.start(0);
+      
+      console.log('AudioContext keep-alive oscillator started (continuous, silent)');
     } catch (error) {
-      console.error('Failed to start keep-alive tone:', error);
+      console.error('Failed to start keep-alive oscillator:', error);
     }
   }
   
