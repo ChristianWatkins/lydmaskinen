@@ -41,15 +41,25 @@ export async function unlockAudio(): Promise<boolean> {
       console.log('✓ AudioContext resumed. State:', context.state);
     }
     
-    // Play a silent sound to fully unlock (iOS Safari requirement)
-    const buffer = context.createBuffer(1, 1, 22050);
-    const source = context.createBufferSource();
-    source.buffer = buffer;
-    source.connect(context.destination);
-    source.start(0);
+    // Play a TEST TONE to fully unlock and verify audio works (iOS Safari requirement)
+    console.log('🔔 Playing test tone to verify audio...');
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
+    
+    oscillator.frequency.value = 440; // A4 note
+    gainNode.gain.value = 0.1; // Quiet but audible
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(context.destination);
+    
+    oscillator.start(context.currentTime);
+    oscillator.stop(context.currentTime + 0.1); // 100ms beep
+    
+    // Wait for the beep to finish
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     isAudioUnlocked = true;
-    console.log('✅ Audio unlocked successfully!');
+    console.log('✅ Audio unlocked successfully! If you heard a short beep, audio is working.');
     return true;
   } catch (error) {
     console.error('❌ Failed to unlock audio:', error);
