@@ -156,19 +156,27 @@ export async function stopRecording(): Promise<Blob | null> {
           const arrayBuffer = await blobToArrayBuffer(originalBlob);
           let audioBuffer = await context.decodeAudioData(arrayBuffer);
           
-          // Trim silence from start and end
-          audioBuffer = await trimSilence(audioBuffer);
+          // Only trim if audio is longer than 200ms (avoid trimming very short clips)
+          if (audioBuffer.length > audioBuffer.sampleRate * 0.2) {
+            // Trim silence from start and end
+            const trimmedBuffer = await trimSilence(audioBuffer);
+            
+            // Only use trimmed version if it's not too short (at least 100ms)
+            if (trimmedBuffer.length > audioBuffer.sampleRate * 0.1) {
+              audioBuffer = trimmedBuffer;
+            }
+          }
           
-          // Convert back to blob
-          const trimmedBlob = await audioBufferToBlob(audioBuffer);
-          
+          // Convert back to blob (keep original WebM format for compatibility)
+          // For now, return original blob and trim on playback instead
+          // This avoids format conversion issues
           currentMediaRecorder = null;
           recordingChunks = [];
           isRecordingActive = false;
-          resolve(trimmedBlob);
+          resolve(originalBlob);
         } catch (error) {
-          console.error('Error trimming audio:', error);
-          // If trimming fails, return original blob
+          console.error('Error processing audio:', error);
+          // If processing fails, return original blob
           currentMediaRecorder = null;
           recordingChunks = [];
           isRecordingActive = false;
@@ -212,32 +220,48 @@ async function blobToArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
 
 /**
  * Trims silence from the beginning and end of audio buffer
+ * Threshold is the minimum amplitude to consider as "sound" (0.0 to 1.0)
+ * Lower threshold = more aggressive trimming, higher threshold = less trimming
  */
-async function trimSilence(audioBuffer: AudioBuffer, threshold: number = 0.01): Promise<AudioBuffer> {
+async function trimSilence(audioBuffer: AudioBuffer, threshold: number = 0.005): Promise<AudioBuffer> {
   const context = audioContext || await initializeAudioContext();
   const channelData = audioBuffer.getChannelData(0); // Use first channel for analysis
   const sampleRate = audioBuffer.sampleRate;
   
-  // Find start of audio (where amplitude exceeds threshold)
+  // Calculate RMS (Root Mean Square) over a window for better detection
+  const windowSize = Math.floor(sampleRate * 0.01); // 10ms window
+  const rmsThreshold = threshold * 0.5; // Lower threshold for RMS
+  
+  // Find start of audio using RMS
   let startIndex = 0;
-  for (let i = 0; i < channelData.length; i++) {
-    if (Math.abs(channelData[i]) > threshold) {
+  for (let i = 0; i < channelData.length - windowSize; i += windowSize) {
+    let sum = 0;
+    for (let j = 0; j < windowSize; j++) {
+      sum += channelData[i + j] * channelData[i + j];
+    }
+    const rms = Math.sqrt(sum / windowSize);
+    if (rms > rmsThreshold) {
       startIndex = Math.max(0, i - sampleRate * 0.05); // Keep 50ms before first sound
       break;
     }
   }
   
-  // Find end of audio (where amplitude drops below threshold)
+  // Find end of audio using RMS
   let endIndex = channelData.length;
-  for (let i = channelData.length - 1; i >= 0; i--) {
-    if (Math.abs(channelData[i]) > threshold) {
-      endIndex = Math.min(channelData.length, i + sampleRate * 0.05); // Keep 50ms after last sound
+  for (let i = channelData.length - windowSize; i >= 0; i -= windowSize) {
+    let sum = 0;
+    for (let j = 0; j < windowSize; j++) {
+      sum += channelData[i + j] * channelData[i + j];
+    }
+    const rms = Math.sqrt(sum / windowSize);
+    if (rms > rmsThreshold) {
+      endIndex = Math.min(channelData.length, i + windowSize + sampleRate * 0.05); // Keep 50ms after last sound
       break;
     }
   }
   
-  // If no significant audio found, return original
-  if (startIndex >= endIndex) {
+  // If no significant audio found or trimming would remove everything, return original
+  if (startIndex >= endIndex || (endIndex - startIndex) < sampleRate * 0.1) {
     return audioBuffer;
   }
   
@@ -404,6 +428,15 @@ export async function playAudio(padData: PadData): Promise<void> {
   
   // Decode audio data
   let audioBuffer = await context.decodeAudioData(arrayBuffer);
+
+  // Trim silence on playback (only if audio is longer than 200ms)
+  if (audioBuffer.length > audioBuffer.sampleRate * 0.2) {
+    const trimmedBuffer = await trimSilence(audioBuffer);
+    // Only use trimmed if it's not too short (at least 100ms)
+    if (trimmedBuffer.length > audioBuffer.sampleRate * 0.1) {
+      audioBuffer = trimmedBuffer;
+    }
+  }
 
   // Apply reverse if needed
   if (padData.reverse) {
