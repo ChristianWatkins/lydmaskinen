@@ -42,26 +42,28 @@ export default function Pad({
 
     console.log('👆 handleStart called, mode:', mode, 'padId:', padData.id);
     
-    if (mode === 'record') {
-      // Start recording
-      console.log('🎙 Starting recording for pad:', padData.id);
-      onRecordStart(padData.id);
-      const { startRecording } = await import('@/lib/audio');
-      const started = await startRecording();
-      setIsRecordingStarted(started);
-      console.log('Recording started:', started);
-    } else if (mode === 'play') {
-      // Howler.js handles all audio unlocking automatically!
-      console.log('🎵 Attempting to play audio for pad:', padData.id, 'hasAudio:', !!padData.audioBlob);
-      onPlay(padData.id);
-    }
-    // Edit mode is handled separately
+    // Always play in main area (record button is separate)
+    console.log('🎵 Attempting to play audio for pad:', padData.id, 'hasAudio:', !!padData.audioBlob);
+    onPlay(padData.id);
   };
 
-  const handleEnd = async (e: React.MouseEvent | React.TouchEvent) => {
+  const handleRecordStart = async (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // Don't trigger pad play
     
-    if (mode === 'record' && isPressed && isRecordingStarted) {
+    console.log('🎙 Starting recording for pad:', padData.id);
+    onRecordStart(padData.id);
+    const { startRecording } = await import('@/lib/audio');
+    const started = await startRecording();
+    setIsRecordingStarted(started);
+    console.log('Recording started:', started);
+  };
+
+  const handleRecordEnd = async (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation(); // Don't trigger pad play
+    
+    if (isRecordingStarted) {
       // Stop recording and save
       const { stopRecording } = await import('@/lib/audio');
       try {
@@ -74,8 +76,12 @@ export default function Pad({
       }
     }
     
-    setIsPressed(false);
     setIsRecordingStarted(false);
+  };
+
+  const handleEnd = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    setIsPressed(false);
   };
 
   const handleEffectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -127,6 +133,27 @@ export default function Pad({
           `}
           style={{ backfaceVisibility: 'hidden' }}
         >
+          {/* Record button - Red dot in top right */}
+          {mode !== 'edit' && (
+            <button
+              className={`
+                absolute top-2 right-2 w-8 h-8 rounded-full z-10
+                ${isRecording ? 'bg-red-600 animate-pulse' : 'bg-red-500 hover:bg-red-600'}
+                shadow-lg transition-all active:scale-90
+              `}
+              onMouseDown={handleRecordStart}
+              onMouseUp={handleRecordEnd}
+              onMouseLeave={handleRecordEnd}
+              onTouchStart={handleRecordStart}
+              onTouchEnd={handleRecordEnd}
+            >
+              <div className="w-full h-full flex items-center justify-center text-white text-xs font-bold">
+                {isRecording ? '●' : '●'}
+              </div>
+            </button>
+          )}
+
+          {/* Main pad area for playback */}
           <button
             className="w-full h-full"
             onMouseDown={mode !== 'edit' ? handleStart : undefined}
@@ -143,14 +170,11 @@ export default function Pad({
                   <div className="text-white text-xs font-semibold">HOLD INNE</div>
                 </>
               )}
-              {padState === 'empty' && mode === 'record' && (
+              {padState === 'empty' && mode !== 'edit' && (
                 <div className="text-center">
                   <div className="text-gray-400 text-xs font-medium mb-1">Tom</div>
-                  <div className="text-gray-300 text-xs">Hold inne</div>
+                  <div className="text-gray-300 text-xs">Hold rød knapp</div>
                 </div>
-              )}
-              {padState === 'empty' && mode !== 'record' && (
-                <div className="text-gray-400 text-sm font-medium">Tom</div>
               )}
             </div>
 
