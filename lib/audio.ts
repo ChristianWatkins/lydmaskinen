@@ -80,17 +80,19 @@ export async function ensureAudioContextRunning(): Promise<void> {
     return;
   }
   
-  if (context.state === 'suspended') {
-    console.log('⏸ AudioContext suspended, resuming...');
+  // Handle suspended or interrupted state
+  if (context.state === 'suspended' || context.state === 'interrupted') {
+    console.log(`⏸ AudioContext ${context.state}, resuming...`);
     await context.resume();
     console.log('✓ AudioContext resumed. State:', context.state);
     isAudioUnlocked = true;
+    return;
   }
   
   if (context.state === 'closed') {
     console.error('✗ AudioContext is closed, creating new one');
     audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    if (audioContext.state === 'suspended') {
+    if (audioContext.state === 'suspended' || audioContext.state === 'interrupted') {
       await audioContext.resume();
     }
     isAudioUnlocked = true;
@@ -477,12 +479,15 @@ export async function playAudio(padData: PadData): Promise<void> {
     const context = getAudioContext();
     console.log('📱 AudioContext state before playback:', context.state);
     
-    // Ensure it's running
-    await ensureAudioContextRunning();
-    
+    // Ensure it's running - handle interrupted state
     if (context.state !== 'running') {
-      console.error('✗ AudioContext failed to start. State:', context.state);
-      throw new Error(`AudioContext is ${context.state}, cannot play audio`);
+      console.log('⚠️ AudioContext not running, attempting to resume...');
+      await ensureAudioContextRunning();
+      
+      if (context.state !== 'running') {
+        console.error('✗ AudioContext failed to start. State:', context.state);
+        throw new Error(`AudioContext is ${context.state}, cannot play audio`);
+      }
     }
     
     console.log('✓ AudioContext ready. State:', context.state);
