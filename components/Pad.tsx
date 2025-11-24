@@ -59,14 +59,15 @@ export default function Pad({
       // Create context synchronously (required for iOS)
       getAudioContext();
       
-      // Resume asynchronously (but initiated from user event)
-      ensureAudioContextRunning().then(() => {
+      // Resume asynchronously (but initiated from user event) - MUST AWAIT!
+      try {
+        await ensureAudioContextRunning();
         console.log('✓ AudioContext ready from user interaction');
-      }).catch(err => {
+      } catch (err) {
         console.error('✗ Failed to ensure AudioContext running:', err);
-      });
+      }
       
-      // Play audio - onPlay will wait for AudioContext to be ready
+      // Play audio - AudioContext is now guaranteed to be ready
       console.log('🎵 Attempting to play audio for pad:', padData.id, 'hasAudio:', !!padData.audioBlob);
       onPlay(padData.id);
     }
