@@ -169,8 +169,11 @@ export async function playAudio(padData: PadData): Promise<void> {
 
   return new Promise((resolve, reject) => {
     try {
+      // TypeScript now knows audioBlob is defined
+      const audioBlob = padData.audioBlob!;
+      
       // Create URL for the blob
-      const audioUrl = URL.createObjectURL(padData.audioBlob);
+      const audioUrl = URL.createObjectURL(audioBlob);
 
       // Clean up old sound if exists
       if (padSounds.has(padData.id)) {
