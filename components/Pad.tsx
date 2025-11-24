@@ -1,7 +1,7 @@
 'use client';
 
 import { PadData } from '@/types';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { RotateCcw, Play } from 'lucide-react';
 
 interface PadProps {
@@ -28,6 +28,8 @@ export default function Pad({
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
   const [showVolumeIndicator, setShowVolumeIndicator] = useState(false);
   const [currentVolume, setCurrentVolume] = useState<number>(padData.volume !== undefined ? padData.volume : 10);
+  const [startVolume, setStartVolume] = useState<number>(padData.volume !== undefined ? padData.volume : 10);
+  const padRef = useRef<HTMLDivElement>(null);
 
   // Sync currentVolume with padData.volume
   useEffect(() => {
@@ -38,24 +40,26 @@ export default function Pad({
     e.preventDefault();
     setIsPressed(true);
 
-    // Track touch start position for swipe detection
+    // Track touch start position
     const startY = ('touches' in e && e.touches.length > 0) 
       ? e.touches[0].clientY 
       : ('clientY' in e ? e.clientY : null);
     
     if (startY !== null) {
       setTouchStartY(startY);
-      setCurrentVolume(padData.volume !== undefined ? padData.volume : 10);
+      const initialVolume = padData.volume !== undefined ? padData.volume : 10;
+      setCurrentVolume(initialVolume);
+      setStartVolume(initialVolume);
     }
 
     console.log('👆 handleStart called, padId:', padData.id);
     
-    // Don't play immediately - wait to see if it's a swipe gesture
-    // Play will happen in handleEnd if no swipe detected
+    // Don't play immediately - wait to see if it's a volume gesture
+    // Play will happen in handleEnd if no volume change detected
   };
 
   const handleMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (touchStartY === null) return;
+    if (touchStartY === null || !padRef.current) return;
     
     e.preventDefault();
     
@@ -65,29 +69,22 @@ export default function Pad({
     
     if (currentY === null) return;
 
-    const deltaY = touchStartY - currentY; // Positive = swipe up, Negative = swipe down
-    const swipeThreshold = 10; // Lower threshold for real-time updates
+    // Get pad's bounding rectangle
+    const padRect = padRef.current.getBoundingClientRect();
+    const padTop = padRect.top;
+    const padBottom = padRect.bottom;
+    const padHeight = padBottom - padTop;
+
+    // Calculate volume based on Y position relative to pad
+    // Top of pad = 10, bottom = 0
+    const relativeY = currentY - padTop; // 0 at top, padHeight at bottom
+    const volumeRatio = 1 - (relativeY / padHeight); // 1 at top, 0 at bottom
+    const newVolume = Math.max(0, Math.min(10, Math.round(volumeRatio * 10)));
     
-    if (Math.abs(deltaY) > swipeThreshold) {
-      // Calculate volume based on swipe distance
-      const pixelsPerStep = 20; // Pixels needed for one volume step
-      const steps = Math.floor(Math.abs(deltaY) / pixelsPerStep);
-      const baseVolume = padData.volume !== undefined ? padData.volume : 10;
-      
-      let newVolume: number;
-      if (deltaY > 0) {
-        // Swipe up - increase volume
-        newVolume = Math.min(10, baseVolume + steps);
-      } else {
-        // Swipe down - decrease volume
-        newVolume = Math.max(0, baseVolume - steps);
-      }
-      
-      // Update volume in real-time
+    // Only update if volume actually changed
+    if (newVolume !== currentVolume) {
       setCurrentVolume(newVolume);
       onSaveEdit(padData.id, { volume: newVolume });
-      
-      // Show volume indicator during gesture
       setShowVolumeIndicator(true);
     }
   };
@@ -127,17 +124,18 @@ export default function Pad({
   const handleEnd = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     
-    const wasSwipe = showVolumeIndicator; // If indicator is showing, it was a swipe
+    // Check if volume changed (was a volume gesture)
+    const volumeChanged = Math.abs(currentVolume - startVolume) > 0.1;
     
     // Hide volume indicator after a brief delay
-    if (wasSwipe) {
+    if (volumeChanged) {
       setTimeout(() => setShowVolumeIndicator(false), 1000);
     } else {
       setShowVolumeIndicator(false);
     }
 
-    // Only play audio if it wasn't a swipe gesture
-    if (!wasSwipe && (padData.audioBlob || padData.audioUrl)) {
+    // Only play audio if volume didn't change (wasn't a volume gesture)
+    if (!volumeChanged && (padData.audioBlob || padData.audioUrl)) {
       console.log('🎵 Playing audio for pad:', padData.id);
       onPlay(padData.id);
     }
@@ -189,6 +187,7 @@ export default function Pad({
       <div className="relative w-full h-full">
         {/* Main Pad */}
         <div
+          ref={padRef}
           className={`
             relative w-full h-full rounded-2xl border-4 transition-all duration-150
             ${padState === 'recording' ? 'bg-red-500 border-red-600 scale-95 shadow-lg shadow-red-500/50' : ''}
