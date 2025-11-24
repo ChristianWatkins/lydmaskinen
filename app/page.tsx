@@ -18,6 +18,24 @@ export default function Home() {
   const [recordingPadId, setRecordingPadId] = useState<string | null>(null);
   const [playingPadId, setPlayingPadId] = useState<string | null>(null);
 
+  // Request microphone permission on mount to activate AudioContext
+  useEffect(() => {
+    const requestMicrophonePermission = async () => {
+      try {
+        // Request microphone permission to activate AudioContext
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Immediately stop the stream - we just needed permission
+        stream.getTracks().forEach(track => track.stop());
+        console.log('Microphone permission granted, AudioContext activated');
+      } catch (error) {
+        console.log('Microphone permission not granted:', error);
+        // This is okay - user can still use the app, just needs to grant permission later
+      }
+    };
+    
+    requestMicrophonePermission();
+  }, []);
+
   // Load from localStorage on mount
   useEffect(() => {
     const stored = loadFromStorage();
