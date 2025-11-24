@@ -154,16 +154,21 @@ export default function Pad({
     e.preventDefault();
     e.stopPropagation();
     
-    // Cycle through: smurf (baby) → none (neutral) → troll → smurf
+    // Cycle: baby (smurf) → neutral (none) → troll → baby
     const currentEffect = padData.effect || 'none';
     let newEffect: PadData['effect'];
+    
+    console.log('Current effect before cycle:', currentEffect);
     
     if (currentEffect === 'smurf') {
       newEffect = 'none'; // baby → neutral
     } else if (currentEffect === 'none') {
       newEffect = 'troll'; // neutral → troll
-    } else {
+    } else if (currentEffect === 'troll') {
       newEffect = 'smurf'; // troll → baby
+    } else {
+      // Fallback: start from neutral
+      newEffect = 'troll';
     }
     
     console.log('Effect cycle:', currentEffect, '→', newEffect);
@@ -221,22 +226,9 @@ export default function Pad({
 
           {/* Direction toggle button - Middle right */}
           <button
-            className="absolute top-1/2 -translate-y-1/2 right-2 w-10 h-10 rounded-full z-30 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleDirectionToggle(e);
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleDirectionToggle(e);
-            }}
-            onTouchStart={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleDirectionToggle(e);
-            }}
+            className="absolute top-1/2 -translate-y-1/2 right-2 w-10 h-10 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
+            onClick={handleDirectionToggle}
+            onTouchEnd={handleDirectionToggle}
           >
             {padData.reverse ? (
               <RotateCcw size={20} className="text-white" strokeWidth={2.5} />
@@ -247,22 +239,9 @@ export default function Pad({
 
           {/* Effect toggle button - Bottom right */}
           <button
-            className="absolute bottom-2 right-2 w-10 h-10 rounded-full z-30 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleEffectCycle(e);
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleEffectCycle(e);
-            }}
-            onTouchStart={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleEffectCycle(e);
-            }}
+            className="absolute bottom-2 right-2 w-10 h-10 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
+            onClick={handleEffectCycle}
+            onTouchEnd={handleEffectCycle}
           >
             {padData.effect === 'none' && (
               <span className="text-white text-sm font-bold">—</span>
