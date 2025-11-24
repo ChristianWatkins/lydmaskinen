@@ -1,190 +1,227 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { PadData, Mode } from '@/types';
-import Pad from '@/components/Pad';
-import { playAudio, saveToStorage, loadFromStorage, initializeAudioContext } from '@/lib/audio';
+import { useEffect, useRef, useState } from 'react';
+
+interface Pad {
+  id: string;
+  label: string;
+  hasAudio: boolean;
+  audioBlob?: Blob;
+}
 
 export default function Home() {
-  const [mode, setMode] = useState<Mode>('play');
-  const [pads, setPads] = useState<PadData[]>(() => {
-    // Initialize 6 pads
-    return Array.from({ length: 6 }, (_, i) => ({
-      id: `pad-${i}`,
-      effect: 'none' as const,
-      reverse: false,
-    }));
-  });
-  const [recordingPadId, setRecordingPadId] = useState<string | null>(null);
-  const [playingPadId, setPlayingPadId] = useState<string | null>(null);
+  const [pads, setPads] = useState<Pad[]>([]);
+  const [recording, setRecording] = useState<string | null>(null);
+  const [audioContextReady, setAudioContextReady] = useState(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
-  // No pre-initialization needed - AudioContext will be initialized on first use
-
-  // Load from localStorage on mount
-  useEffect(() => {
-    const stored = loadFromStorage();
-    if (stored.length > 0) {
-      setPads(prevPads => {
-        return prevPads.map((pad, index) => {
-          const storedPad = stored[index];
-          if (storedPad && storedPad.audioUrl) {
-            // Convert URL back to blob if needed
-            return {
-              ...pad,
-              ...storedPad,
-            };
-          }
-          return pad;
-        });
-      });
+  // Initialize AudioContext on first user interaction
+  const initializeAudioContext = async () => {
+    if (audioContextReady) return;
+    
+    console.log('Initializing AudioContext...');
+    
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContext();
+        console.log('New AudioContext created. State:', audioContextRef.current.state);
+      }
+      
+      if (audioContextRef.current.state === 'suspended') {
+        console.log('AudioContext suspended, resuming...');
+        await audioContextRef.current.resume();
+        console.log('AudioContext resumed. State:', audioContextRef.current.state);
+      }
+      
+      setAudioContextReady(true);
+      console.log('AudioContext ready for playback');
+    } catch (error) {
+      console.error('Failed to initialize AudioContext:', error);
     }
-  }, []);
-
-  // Save to localStorage whenever pads change
-  useEffect(() => {
-    const saveData = async () => {
-      await saveToStorage(pads);
-    };
-    saveData();
-  }, [pads]);
-
-  const handleRecordStart = (padId: string) => {
-    setRecordingPadId(padId);
   };
 
-  const handleRecord = async (padId: string, blob: Blob) => {
-    const audioUrl = URL.createObjectURL(blob);
-    setPads(prevPads =>
-      prevPads.map(pad =>
-        pad.id === padId
-          ? { ...pad, audioBlob: blob, audioUrl }
-          : pad
-      )
-    );
-    setRecordingPadId(null);
+  useEffect(() => {
+    // Initialize 16 pads
+    const initialPads: Pad[] = Array.from({ length: 16 }, (_, i) => ({
+      id: `pad-${i}`,
+      label: `PAD ${i + 1}`,
+      hasAudio: false,
+    }));
+    setPads(initialPads);
+
+    return () => {
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
+  }, []);
+
+  const handleStart = async (mode: 'play' | 'record', padId: string) => {
+    console.log('handleStart called, mode:', mode, 'padId:', padId);
+    
+    // Always initialize AudioContext on first interaction
+    await initializeAudioContext();
+
+    if (mode === 'play') {
+      await handlePlay(padId);
+    } else if (mode === 'record') {
+      await handleRecord(padId);
+    }
   };
 
   const handlePlay = async (padId: string) => {
     console.log('handlePlay called for pad:', padId);
-    const pad = pads.find(p => p.id === padId);
+    const pad = pads.find((p) => p.id === padId);
     
     if (!pad) {
-      console.warn('Pad not found:', padId);
-      return;
-    }
-    
-    if (!pad.audioBlob) {
-      console.warn('No audio recorded for pad:', padId);
-      return;
-    }
-    
-    console.log('Playing pad with audio blob size:', pad.audioBlob.size);
-
-    // Initialize audio context on first interaction
-    try {
-      await initializeAudioContext();
-      console.log('AudioContext initialized for playback');
-    } catch (error) {
-      console.error('Failed to initialize AudioContext:', error);
+      console.log('Pad not found:', padId);
       return;
     }
 
-    setPlayingPadId(padId);
+    console.log('Attempting to play audio for pad:', padId, 'hasAudio:', pad.hasAudio);
+
+    if (!pad.hasAudio || !pad.audioBlob) {
+      console.log('No audio data for pad:', padId);
+      return;
+    }
+
+    if (!audioContextRef.current) {
+      console.error('AudioContext not initialized');
+      return;
+    }
+
     try {
-      await playAudio(pad);
-      console.log('Playback completed successfully');
+      console.log('Playing pad with audio blob size:', pad.audioBlob.size);
+
+      // Ensure AudioContext is running
+      if (audioContextRef.current.state === 'suspended') {
+        console.log('AudioContext suspended, resuming...');
+        await audioContextRef.current.resume();
+      }
+
+      console.log('AudioContext state in playAudio:', audioContextRef.current.state);
+
+      const arrayBuffer = await pad.audioBlob.arrayBuffer();
+      console.log('ArrayBuffer size:', arrayBuffer.byteLength, 'bytes');
+
+      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+      console.log('AudioBuffer decoded - length:', audioBuffer.length, 'samples, duration:', audioBuffer.duration, 'seconds');
+
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContextRef.current.destination);
+
+      console.log('Audio source created and connected, starting playback...');
+      console.log('AudioContext state before start:', audioContextRef.current.state);
+
+      source.start(0);
+      console.log('Audio playback started successfully');
+
+      source.onended = () => {
+        console.log('Audio playback ended');
+      };
     } catch (error) {
-      console.error('Playback error:', error);
-    } finally {
-      setPlayingPadId(null);
+      console.error('Error playing audio:', error);
     }
   };
 
-  const handleSaveEdit = (padId: string, updates: Partial<PadData>) => {
-    setPads(prevPads =>
-      prevPads.map(pad =>
-        pad.id === padId ? { ...pad, ...updates } : pad
-      )
-    );
+  const handleRecord = async (padId: string) => {
+    console.log('handleRecord called for pad:', padId);
+    
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('Microphone access granted');
+
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        console.log('Audio data available, size:', event.data.size);
+        audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorderRef.current.onstop = () => {
+        console.log('Recording stopped, total chunks:', audioChunksRef.current.length);
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        console.log('Created audio blob, size:', audioBlob.size);
+
+        setPads((prevPads) =>
+          prevPads.map((p) =>
+            p.id === padId ? { ...p, hasAudio: true, audioBlob } : p
+          )
+        );
+
+        setRecording(null);
+        stream.getTracks().forEach((track) => track.stop());
+        console.log('Microphone stream stopped');
+      };
+
+      mediaRecorderRef.current.start();
+      setRecording(padId);
+      console.log('Recording started for pad:', padId);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+    }
+  };
+
+  const handleStop = () => {
+    console.log('handleStop called');
+    if (mediaRecorderRef.current && recording) {
+      console.log('Stopping MediaRecorder');
+      mediaRecorderRef.current.stop();
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-orange-100 p-4">
-      <div className="max-w-md mx-auto">
-        {/* Mode Toggle */}
-        <div className="mb-6 bg-white/80 backdrop-blur-sm rounded-2xl p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-gray-700 font-semibold text-lg">Opptak</span>
-              <button
-                onClick={async () => {
-                  // Always initialize AudioContext when toggling modes
-                  await initializeAudioContext();
-                  // Toggle between record and play (not edit)
-                  if (mode === 'record') {
-                    setMode('play');
-                  } else {
-                    setMode('record');
-                  }
-                }}
-                className={`
-                  relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-200 ease-in-out cursor-pointer
-                  ${mode === 'record' ? 'bg-red-500' : 'bg-gray-300'}
-                  focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500
-                `}
-              >
-                <span
-                  className={`
-                    inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out
-                    ${mode === 'record' ? 'translate-x-7' : 'translate-x-1'}
-                  `}
-                />
-              </button>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-gray-700 font-semibold text-lg">Rediger</span>
-              <button
-                onClick={async () => {
-                  // Always initialize AudioContext when toggling modes
-                  await initializeAudioContext();
-                  setMode(mode === 'edit' ? 'play' : 'edit');
-                }}
-                className={`
-                  relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-200 ease-in-out cursor-pointer
-                  ${mode === 'edit' ? 'bg-purple-500' : 'bg-gray-300'}
-                  focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500
-                `}
-              >
-                <span
-                  className={`
-                    inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out
-                    ${mode === 'edit' ? 'translate-x-7' : 'translate-x-1'}
-                  `}
-                />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Pad Grid */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          {pads.map((pad) => (
-            <Pad
-              key={pad.id}
-              padData={pad}
-              mode={mode}
-              onRecordStart={handleRecordStart}
-              onRecord={handleRecord}
-              onPlay={handlePlay}
-              onSaveEdit={handleSaveEdit}
-              isRecording={recordingPadId === pad.id}
-              isPlaying={playingPadId === pad.id}
-            />
-          ))}
-        </div>
-
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-purple-900 via-black to-black p-8">
+      <div className="mb-8 text-center">
+        <h1 className="text-4xl font-bold text-white mb-2">MPC Sampler</h1>
+        <p className="text-gray-400">Click to play • Right-click to record</p>
+        {!audioContextReady && (
+          <p className="text-yellow-400 mt-2 text-sm">Click any pad to enable audio</p>
+        )}
       </div>
 
+      <div className="grid grid-cols-4 gap-4 max-w-4xl">
+        {pads.map((pad) => (
+          <button
+            key={pad.id}
+            className={`relative aspect-square rounded-lg border-2 transition-all duration-200 ${
+              recording === pad.id
+                ? 'bg-red-600 border-red-400 animate-pulse'
+                : pad.hasAudio
+                ? 'bg-green-600 border-green-400 hover:bg-green-500'
+                : 'bg-gray-800 border-gray-600 hover:bg-gray-700'
+            } active:scale-95`}
+            onClick={() => handleStart('play', pad.id)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              if (recording === pad.id) {
+                handleStop();
+              } else if (!recording) {
+                handleStart('record', pad.id);
+              }
+            }}
+          >
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4">
+              <span className="text-lg font-bold">{pad.label}</span>
+              {recording === pad.id && (
+                <span className="text-xs mt-2">Recording...</span>
+              )}
+              {!recording && pad.hasAudio && (
+                <span className="text-xs mt-2 text-green-200">Ready</span>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-8 text-gray-400 text-sm text-center">
+        <p>Left-click: Play sample</p>
+        <p>Right-click: Start recording (right-click again to stop)</p>
+      </div>
     </div>
   );
 }
