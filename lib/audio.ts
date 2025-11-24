@@ -474,7 +474,7 @@ async function playAudioWithReverb(padData: PadData): Promise<void> {
     for (let channel = 0; channel < impulse.numberOfChannels; channel++) {
       const channelData = impulse.getChannelData(channel);
       for (let i = 0; i < impulseLength; i++) {
-        const decay = Math.pow(1 - i / impulseLength, 0.5);
+        const decay = Math.pow(1 - i / impulseLength, 0.3);
         channelData[i] = (Math.random() * 2 - 1) * decay;
       }
     }
