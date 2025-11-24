@@ -399,6 +399,11 @@ export async function playAudio(padData: PadData): Promise<void> {
   try {
     const context = await initializeAudioContext();
     
+    // Ensure context is running
+    if (context.state === 'suspended') {
+      await context.resume();
+    }
+    
     // Convert blob to array buffer
     const arrayBuffer = await blobToArrayBuffer(padData.audioBlob);
     
@@ -410,7 +415,7 @@ export async function playAudio(padData: PadData): Promise<void> {
     // Decode audio data
     let audioBuffer: AudioBuffer;
     try {
-      audioBuffer = await context.decodeAudioData(arrayBuffer);
+      audioBuffer = await context.decodeAudioData(arrayBuffer.slice(0));
     } catch (error) {
       console.error('Error decoding audio data:', error);
       return;
@@ -452,7 +457,11 @@ export async function playAudio(padData: PadData): Promise<void> {
       try {
         const source = context.createBufferSource();
         source.buffer = audioBuffer;
-        source.connect(context.destination);
+        
+        // Connect to destination
+        const gainNode = context.createGain();
+        source.connect(gainNode);
+        gainNode.connect(context.destination);
         
         source.onended = () => {
           resolve();
