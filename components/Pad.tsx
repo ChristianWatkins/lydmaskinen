@@ -2,7 +2,7 @@
 
 import { PadData } from '@/types';
 import { useState, useEffect, useRef } from 'react';
-import { RotateCcw, Play } from 'lucide-react';
+import { RotateCcw, Play, Waves } from 'lucide-react';
 
 interface PadProps {
   padData: PadData;
@@ -268,15 +268,19 @@ export default function Pad({
 
           {/* Reverb toggle button - Bottom left */}
           <button
-            className="absolute bottom-2 left-2 w-10 h-10 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
+            className={`absolute bottom-2 left-2 w-10 h-10 rounded-full z-20 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center ${
+              padData.reverb 
+                ? 'bg-purple-500/80 hover:bg-purple-600/80' 
+                : 'bg-black/20 hover:bg-black/30'
+            }`}
             onClick={handleReverbToggle}
             onTouchEnd={handleReverbToggle}
           >
-            {padData.reverb ? (
-              <span className="text-white text-lg">🌊</span>
-            ) : (
-              <span className="text-white/60 text-lg">🌊</span>
-            )}
+            <Waves 
+              size={18} 
+              className={padData.reverb ? 'text-white' : 'text-white/60'} 
+              strokeWidth={padData.reverb ? 2.5 : 2}
+            />
           </button>
 
           {/* Effect toggle button - Bottom right */}

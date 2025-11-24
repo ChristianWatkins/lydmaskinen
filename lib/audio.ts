@@ -183,7 +183,7 @@ async function applyReverbToBlob(blob: Blob): Promise<Blob> {
     
     // Create reverb using Pizzicato's reverb algorithm (ConvolverNode)
     const convolver = offlineContext.createConvolver();
-    const reverbTime = 0.5; // seconds
+    const reverbTime = 2.5; // seconds
     const impulseLength = Math.floor(audioBuffer.sampleRate * reverbTime);
     const impulse = offlineContext.createBuffer(2, impulseLength, audioBuffer.sampleRate);
     
