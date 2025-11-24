@@ -17,6 +17,24 @@ export default function Home() {
   const [recordingPadId, setRecordingPadId] = useState<string | null>(null);
   const [playingPadId, setPlayingPadId] = useState<string | null>(null);
 
+  // Request microphone permission on mount to reduce notification spam
+  useEffect(() => {
+    const requestMicPermission = async () => {
+      try {
+        // Request permission but don't actually use the stream yet
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log('✓ Microphone permission granted on startup');
+        // Immediately stop the stream - we just wanted the permission
+        stream.getTracks().forEach(track => track.stop());
+      } catch (error) {
+        console.log('⚠️ Microphone permission not granted:', error);
+        // This is fine - user will be prompted when they actually try to record
+      }
+    };
+    
+    requestMicPermission();
+  }, []);
+
   // Load from localStorage on mount
   useEffect(() => {
     const stored = loadFromStorage();
