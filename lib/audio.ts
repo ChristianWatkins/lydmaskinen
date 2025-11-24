@@ -539,23 +539,37 @@ export async function playAudio(padData: PadData): Promise<void> {
         
         // Connect to destination
         const gainNode = context.createGain();
-        gainNode.gain.value = 1.0; // Ensure volume is set
+        gainNode.gain.value = 1.0; // Full volume
         source.connect(gainNode);
         gainNode.connect(context.destination);
         
-        console.log('Audio source created and connected, starting playback...');
-        console.log('AudioContext state before start:', context.state);
+        console.log('🔊 Audio source created and connected, starting playback...');
+        console.log('📊 Buffer info:', {
+          duration: audioBuffer.duration,
+          length: audioBuffer.length,
+          sampleRate: audioBuffer.sampleRate,
+          numberOfChannels: audioBuffer.numberOfChannels
+        });
+        console.log('🎚️ Gain value:', gainNode.gain.value);
+        console.log('🔌 Destination:', context.destination);
+        console.log('📱 AudioContext state before start:', context.state);
+        console.log('🔢 AudioContext currentTime:', context.currentTime);
         
         source.onended = () => {
-          console.log('Audio playback ended');
+          console.log('✓ Audio playback ended');
           resolve();
         };
         
         source.start(0);
-        console.log('Audio playback started successfully');
-        console.log('AudioContext state after start:', context.state);
+        console.log('▶️ Audio playback started successfully');
+        console.log('📱 AudioContext state after start:', context.state);
+        
+        // Add a timeout to log if playback seems stuck
+        setTimeout(() => {
+          console.log('⏱️ 1 second into playback. Context time:', context.currentTime);
+        }, 1000);
       } catch (error) {
-        console.error('Error starting audio playback:', error);
+        console.error('❌ Error starting audio playback:', error);
         reject(error);
       }
     });
