@@ -140,7 +140,7 @@ export default function Pad({
               {padState === 'playing' && (
                 <div className="text-white text-2xl font-bold">▶</div>
               )}
-              {padState === 'has-audio' && padState !== 'recording' && padState !== 'playing' && (
+              {padState === 'has-audio' && !isRecording && !isPlaying && (
                 <div className="text-white text-sm font-semibold opacity-75">
                   {padData.effect !== 'none' && (
                     <span className="block">{padData.effect === 'smurf' ? '🎵' : '👹'}</span>
