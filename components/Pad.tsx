@@ -272,20 +272,20 @@ export default function Pad({
                 </div>
               )}
               
-              {/* Volume indicator - shows during gesture */}
+              {/* Volume indicator - shows during gesture, left side */}
               {showVolumeIndicator && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-2xl">
-                  <div className="flex items-center gap-4">
-                    {/* Volume number */}
-                    <div className="text-white text-3xl font-bold">
-                      🔊 {currentVolume}
-                    </div>
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm rounded-2xl flex items-center">
+                  <div className="absolute left-2 flex items-center gap-2">
                     {/* Vertical volume bar */}
                     <div className="h-32 w-3 bg-white/20 rounded-full overflow-hidden flex flex-col-reverse">
                       <div 
                         className="w-full bg-white rounded-full transition-all duration-100"
                         style={{ height: `${(currentVolume / 10) * 100}%` }}
                       />
+                    </div>
+                    {/* Volume number */}
+                    <div className="text-white text-2xl font-bold">
+                      {currentVolume}
                     </div>
                   </div>
                 </div>
