@@ -237,7 +237,9 @@ export default function Pad({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              handleEffectChange({ target: { value: 'troll' } } as React.ChangeEvent<HTMLSelectElement>);
+              // Toggle troll: if already troll, set to none, otherwise set to troll
+              const newEffect = localEffect === 'troll' ? 'none' : 'troll';
+              handleEffectChange({ target: { value: newEffect } } as React.ChangeEvent<HTMLSelectElement>);
             }}
             className={`
               flex items-center justify-center border-r-2 border-gray-200 transition-all
@@ -254,7 +256,9 @@ export default function Pad({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              handleEffectChange({ target: { value: 'smurf' } } as React.ChangeEvent<HTMLSelectElement>);
+              // Toggle smurf: if already smurf, set to none, otherwise set to smurf
+              const newEffect = localEffect === 'smurf' ? 'none' : 'smurf';
+              handleEffectChange({ target: { value: newEffect } } as React.ChangeEvent<HTMLSelectElement>);
             }}
             className={`
               flex items-center justify-center transition-all

@@ -396,16 +396,22 @@ export async function playAudio(padData: PadData): Promise<void> {
     return;
   }
 
+  console.log('playAudio called - blob size:', padData.audioBlob.size, 'bytes');
+
   try {
     const context = await initializeAudioContext();
+    console.log('AudioContext state:', context.state);
     
     // Ensure context is running
     if (context.state === 'suspended') {
+      console.log('Resuming suspended AudioContext...');
       await context.resume();
+      console.log('AudioContext state after resume:', context.state);
     }
     
     // Convert blob to array buffer
     const arrayBuffer = await blobToArrayBuffer(padData.audioBlob);
+    console.log('ArrayBuffer size:', arrayBuffer.byteLength, 'bytes');
     
     if (!arrayBuffer || arrayBuffer.byteLength === 0) {
       console.error('Empty array buffer');
@@ -416,6 +422,7 @@ export async function playAudio(padData: PadData): Promise<void> {
     let audioBuffer: AudioBuffer;
     try {
       audioBuffer = await context.decodeAudioData(arrayBuffer.slice(0));
+      console.log('AudioBuffer decoded - length:', audioBuffer.length, 'samples, duration:', (audioBuffer.length / audioBuffer.sampleRate).toFixed(2), 'seconds');
     } catch (error) {
       console.error('Error decoding audio data:', error);
       return;
@@ -446,11 +453,15 @@ export async function playAudio(padData: PadData): Promise<void> {
 
     // Apply reverse if needed
     if (padData.reverse) {
+      console.log('Applying reverse effect');
       audioBuffer = await reverseAudioBuffer(audioBuffer);
     }
 
     // Apply effect
-    audioBuffer = await applyEffectToBuffer(audioBuffer, padData.effect);
+    if (padData.effect !== 'none') {
+      console.log('Applying effect:', padData.effect);
+      audioBuffer = await applyEffectToBuffer(audioBuffer, padData.effect);
+    }
 
     // Create source and play
     return new Promise((resolve, reject) => {
@@ -460,14 +471,21 @@ export async function playAudio(padData: PadData): Promise<void> {
         
         // Connect to destination
         const gainNode = context.createGain();
+        gainNode.gain.value = 1.0; // Ensure volume is set
         source.connect(gainNode);
         gainNode.connect(context.destination);
         
+        console.log('Audio source created and connected, starting playback...');
+        console.log('AudioContext state before start:', context.state);
+        
         source.onended = () => {
+          console.log('Audio playback ended');
           resolve();
         };
         
         source.start(0);
+        console.log('Audio playback started successfully');
+        console.log('AudioContext state after start:', context.state);
       } catch (error) {
         console.error('Error starting audio playback:', error);
         reject(error);
