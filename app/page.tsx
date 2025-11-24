@@ -18,29 +18,7 @@ export default function Home() {
   const [recordingPadId, setRecordingPadId] = useState<string | null>(null);
   const [playingPadId, setPlayingPadId] = useState<string | null>(null);
 
-  // Add a click listener to the whole page to initialize AudioContext on first interaction
-  useEffect(() => {
-    const handleFirstClick = async () => {
-      console.log('First user interaction detected, initializing AudioContext...');
-      try {
-        await initializeAudioContext();
-        console.log('AudioContext initialized on first interaction');
-      } catch (error) {
-        console.error('Failed to initialize AudioContext:', error);
-      }
-      // Remove the listener after first click
-      document.removeEventListener('click', handleFirstClick);
-      document.removeEventListener('touchstart', handleFirstClick);
-    };
-    
-    document.addEventListener('click', handleFirstClick);
-    document.addEventListener('touchstart', handleFirstClick);
-    
-    return () => {
-      document.removeEventListener('click', handleFirstClick);
-      document.removeEventListener('touchstart', handleFirstClick);
-    };
-  }, []);
+  // No pre-initialization needed - AudioContext will be initialized on first use
 
   // Load from localStorage on mount
   useEffect(() => {

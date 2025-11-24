@@ -3,64 +3,58 @@ import { PadData } from '@/types';
 let audioContext: AudioContext | null = null;
 let keepAliveOscillator: OscillatorNode | null = null;
 let keepAliveGain: GainNode | null = null;
-let initPromise: Promise<AudioContext> | null = null;
 
 /**
  * Initializes AudioContext on first user interaction (required for autoplay policy)
  * Must be called within a user event handler
  */
 export async function initializeAudioContext(): Promise<AudioContext> {
-  // If already initializing, return the same promise
-  if (initPromise) {
-    console.log('AudioContext initialization already in progress...');
-    return initPromise;
-  }
-  
   // If already initialized and running, return immediately
   if (audioContext && audioContext.state === 'running') {
     console.log('AudioContext already running.');
     return audioContext;
   }
 
-  // Create initialization promise
-  initPromise = (async () => {
-    try {
-      // Create new AudioContext if it doesn't exist
-      if (!audioContext) {
-        audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        console.log('New AudioContext created. State:', audioContext.state);
-      }
-      
-      // Resume if suspended (required for autoplay policy)
-      if (audioContext.state === 'suspended') {
-        console.log('AudioContext suspended, resuming...');
-        await audioContext.resume();
-        console.log('AudioContext state after resume:', audioContext.state);
-      }
-      
-      // Start keep-alive oscillator if running
-      if (audioContext.state === 'running' && !keepAliveOscillator) {
-        try {
-          keepAliveOscillator = audioContext.createOscillator();
-          keepAliveGain = audioContext.createGain();
-          keepAliveGain.gain.value = 0; // Silent
-          keepAliveOscillator.connect(keepAliveGain);
-          keepAliveGain.connect(audioContext.destination);
-          keepAliveOscillator.start(0);
-          console.log('Keep-alive oscillator started');
-        } catch (error) {
-          console.error('Failed to start keep-alive oscillator:', error);
-        }
-      }
-      
-      return audioContext;
-    } finally {
-      // Clear the promise so future calls can proceed
-      initPromise = null;
-    }
-  })();
+  // Create new AudioContext if it doesn't exist
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    console.log('New AudioContext created. State:', audioContext.state);
+  }
   
-  return initPromise;
+  // Resume if suspended (required for autoplay policy)
+  if (audioContext.state === 'suspended') {
+    console.log('AudioContext suspended, resuming...');
+    try {
+      await Promise.race([
+        audioContext.resume(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Resume timeout')), 2000))
+      ]);
+      console.log('AudioContext state after resume:', audioContext.state);
+    } catch (error) {
+      console.error('Failed to resume AudioContext:', error);
+      // Try recreating the context
+      audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      console.log('Created new AudioContext after resume failure. State:', audioContext.state);
+    }
+  }
+  
+  // Start keep-alive oscillator if running
+  if (audioContext.state === 'running' && !keepAliveOscillator) {
+    try {
+      keepAliveOscillator = audioContext.createOscillator();
+      keepAliveGain = audioContext.createGain();
+      keepAliveGain.gain.value = 0; // Silent
+      keepAliveOscillator.connect(keepAliveGain);
+      keepAliveGain.connect(audioContext.destination);
+      keepAliveOscillator.start(0);
+      console.log('Keep-alive oscillator started');
+    } catch (error) {
+      console.error('Failed to start keep-alive oscillator:', error);
+    }
+  }
+  
+  console.log('Final AudioContext state:', audioContext.state);
+  return audioContext;
 }
 
 /**
@@ -439,36 +433,16 @@ export async function playAudio(padData: PadData): Promise<void> {
 
   try {
     const context = await initializeAudioContext();
-    console.log('AudioContext state:', context.state);
+    console.log('AudioContext state in playAudio:', context.state);
     
-    // Ensure context is running - try multiple times if needed
-    let attempts = 0;
-    while (context.state === 'suspended' && attempts < 5) {
-      console.log(`Resuming suspended AudioContext (attempt ${attempts + 1})...`);
-      await context.resume();
-      console.log('AudioContext state after resume:', context.state);
-      attempts++;
-      
-      // Small delay between attempts
-      if (context.state === 'suspended' && attempts < 5) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
-    
-    // If still suspended, try starting a silent tone to wake it up
     if (context.state !== 'running') {
-      console.log('AudioContext still not running, trying to wake it up with silent tone...');
+      console.error('AudioContext is not running! State:', context.state);
+      // Try one more time to resume
       try {
-        const buffer = context.createBuffer(1, 1, 22050);
-        const source = context.createBufferSource();
-        source.buffer = buffer;
-        source.connect(context.destination);
-        source.start(0);
-        source.stop(0.001);
         await context.resume();
-        console.log('AudioContext state after wake-up:', context.state);
+        console.log('AudioContext state after emergency resume:', context.state);
       } catch (error) {
-        console.error('Failed to wake up AudioContext:', error);
+        console.error('Emergency resume failed:', error);
       }
     }
     
