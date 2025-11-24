@@ -417,11 +417,29 @@ export async function playAudio(padData: PadData): Promise<void> {
     const context = await initializeAudioContext();
     console.log('AudioContext state:', context.state);
     
-    // Ensure context is running
-    if (context.state === 'suspended') {
-      console.log('Resuming suspended AudioContext...');
+    // Ensure context is running - try multiple times if needed
+    let attempts = 0;
+    while (context.state === 'suspended' && attempts < 5) {
+      console.log(`Resuming suspended AudioContext (attempt ${attempts + 1})...`);
       await context.resume();
       console.log('AudioContext state after resume:', context.state);
+      attempts++;
+      
+      // Small delay between attempts
+      if (context.state === 'suspended' && attempts < 5) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    if (context.state !== 'running') {
+      console.error('AudioContext failed to start, state:', context.state);
+      // Try one more time with a user gesture simulation
+      try {
+        await context.resume();
+        console.log('Final AudioContext state:', context.state);
+      } catch (error) {
+        console.error('Failed to resume AudioContext:', error);
+      }
     }
     
     // Convert blob to array buffer

@@ -44,7 +44,14 @@ export default function Pad({
     
     // Always initialize AudioContext on first interaction
     const { initializeAudioContext } = await import('@/lib/audio');
-    await initializeAudioContext();
+    const context = await initializeAudioContext();
+    
+    // Ensure context is running before proceeding
+    if (context.state === 'suspended') {
+      console.log('AudioContext suspended in handleStart, resuming...');
+      await context.resume();
+      console.log('AudioContext state after resume in handleStart:', context.state);
+    }
     
     if (mode === 'record') {
       // Start recording - don't play audio

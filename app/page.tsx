@@ -114,8 +114,9 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <span className="text-gray-700 font-semibold text-lg">Opptak</span>
               <button
-                onClick={() => {
-                  initializeAudioContext();
+                onClick={async () => {
+                  // Always initialize AudioContext when toggling modes
+                  await initializeAudioContext();
                   // Toggle between record and play (not edit)
                   if (mode === 'record') {
                     setMode('play');
@@ -140,8 +141,9 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <span className="text-gray-700 font-semibold text-lg">Rediger</span>
               <button
-                onClick={() => {
-                  initializeAudioContext();
+                onClick={async () => {
+                  // Always initialize AudioContext when toggling modes
+                  await initializeAudioContext();
                   setMode(mode === 'edit' ? 'play' : 'edit');
                 }}
                 className={`
