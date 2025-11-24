@@ -458,11 +458,6 @@ export async function playAudio(padData: PadData): Promise<void> {
           resolve();
         };
         
-        source.onerror = (error) => {
-          console.error('Audio source error:', error);
-          reject(error);
-        };
-        
         source.start(0);
       } catch (error) {
         console.error('Error starting audio playback:', error);
