@@ -137,9 +137,6 @@ export default function Pad({
                   <div className="text-white text-xs font-semibold">HOLD INNE</div>
                 </>
               )}
-              {padState === 'playing' && (
-                <div className="text-white text-2xl font-bold">▶</div>
-              )}
               {padState === 'empty' && mode === 'record' && (
                 <div className="text-center">
                   <div className="text-gray-400 text-xs font-medium mb-1">Tom</div>
