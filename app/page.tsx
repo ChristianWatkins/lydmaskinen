@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { PadData, Mode } from '@/types';
+import { PadData } from '@/types';
 import Pad from '@/components/Pad';
 import { playAudio, saveToStorage, loadFromStorage } from '@/lib/audio';
 
 export default function Home() {
-  const [mode, setMode] = useState<Mode>('play');
   const [pads, setPads] = useState<PadData[]>(() => {
     // Initialize 6 pads
     return Array.from({ length: 6 }, (_, i) => ({
@@ -101,37 +100,12 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-orange-100 p-4">
       <div className="max-w-md mx-auto">
-        {/* Mode Toggle - Only Edit mode now */}
-        <div className="mb-6 bg-white/80 backdrop-blur-sm rounded-2xl p-4">
-          <div className="flex items-center justify-center gap-3">
-            <span className="text-gray-700 font-semibold text-lg">Rediger</span>
-            <button
-              onClick={() => {
-                setMode(mode === 'edit' ? 'play' : 'edit');
-              }}
-              className={`
-                relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-200 ease-in-out cursor-pointer
-                ${mode === 'edit' ? 'bg-purple-500' : 'bg-gray-300'}
-                focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500
-              `}
-            >
-              <span
-                className={`
-                  inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out
-                  ${mode === 'edit' ? 'translate-x-7' : 'translate-x-1'}
-                `}
-              />
-            </button>
-          </div>
-        </div>
-
         {/* Pad Grid */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           {pads.map((pad) => (
             <Pad
               key={pad.id}
               padData={pad}
-              mode={mode}
               onRecordStart={handleRecordStart}
               onRecord={handleRecord}
               onPlay={handlePlay}

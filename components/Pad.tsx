@@ -1,12 +1,11 @@
 'use client';
 
-import { PadData, Mode } from '@/types';
+import { PadData } from '@/types';
 import { useState, useEffect } from 'react';
 import { RotateCcw, Play } from 'lucide-react';
 
 interface PadProps {
   padData: PadData;
-  mode: Mode;
   onRecordStart: (padId: string) => void;
   onRecord: (padId: string, blob: Blob) => void;
   onPlay: (padId: string) => void;
@@ -17,7 +16,6 @@ interface PadProps {
 
 export default function Pad({
   padData,
-  mode,
   onRecordStart,
   onRecord,
   onPlay,
@@ -27,20 +25,12 @@ export default function Pad({
 }: PadProps) {
   const [isPressed, setIsPressed] = useState(false);
   const [isRecordingStarted, setIsRecordingStarted] = useState(false);
-  const [localEffect, setLocalEffect] = useState<PadData['effect']>(padData.effect);
-  const [localReverse, setLocalReverse] = useState(padData.reverse);
-
-  // Update local state when padData changes
-  useEffect(() => {
-    setLocalEffect(padData.effect);
-    setLocalReverse(padData.reverse);
-  }, [padData.effect, padData.reverse]);
 
   const handleStart = async (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     setIsPressed(true);
 
-    console.log('👆 handleStart called, mode:', mode, 'padId:', padData.id);
+    console.log('👆 handleStart called, padId:', padData.id);
     
     // Always play in main area (record button is separate)
     console.log('🎵 Attempting to play audio for pad:', padData.id, 'hasAudio:', !!padData.audioBlob);
@@ -84,20 +74,31 @@ export default function Pad({
     setIsPressed(false);
   };
 
-  const handleEffectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newEffect = e.target.value as PadData['effect'];
-    setLocalEffect(newEffect);
-    onSaveEdit(padData.id, { effect: newEffect });
+  const handleDirectionToggle = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onSaveEdit(padData.id, { reverse: !padData.reverse });
   };
 
-  const handleReverseToggle = (reverse: boolean) => {
-    setLocalReverse(reverse);
-    onSaveEdit(padData.id, { reverse });
+  const handleEffectCycle = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Cycle through: none → smurf → troll → none
+    let newEffect: PadData['effect'];
+    if (padData.effect === 'none') {
+      newEffect = 'smurf';
+    } else if (padData.effect === 'smurf') {
+      newEffect = 'troll';
+    } else {
+      newEffect = 'none';
+    }
+    
+    onSaveEdit(padData.id, { effect: newEffect });
   };
 
   const hasAudio = !!padData.audioBlob || !!padData.audioUrl;
   const padState = isRecording ? 'recording' : isPlaying ? 'playing' : hasAudio ? 'has-audio' : 'empty';
-  const isFlipped = mode === 'edit';
 
   // Color palette for pads
   const padColors: Record<string, { bg: string; border: string; hover: string }> = {
@@ -112,18 +113,12 @@ export default function Pad({
   const colors = padColors[padData.id] || { bg: 'bg-gray-400', border: 'border-gray-500', hover: 'hover:bg-gray-500' };
 
   return (
-    <div className="aspect-square w-full" style={{ perspective: '1000px' }}>
-      <div
-        className="relative w-full h-full transition-transform duration-600 ease-in-out"
-        style={{
-          transformStyle: 'preserve-3d',
-          transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
-        }}
-      >
-        {/* Front side - Pad */}
+    <div className="aspect-square w-full">
+      <div className="relative w-full h-full">
+        {/* Main Pad */}
         <div
           className={`
-            absolute inset-0 w-full h-full backface-hidden rounded-2xl border-4 transition-all duration-150
+            relative w-full h-full rounded-2xl border-4 transition-all duration-150
             ${padState === 'recording' ? 'bg-red-500 border-red-600 scale-95 shadow-lg shadow-red-500/50' : ''}
             ${padState === 'playing' ? 'bg-green-400 border-green-500 scale-95 shadow-lg shadow-green-500/50' : ''}
             ${padState === 'has-audio' ? `${colors.bg} ${colors.border} ${colors.hover} active:scale-95` : ''}
@@ -131,169 +126,78 @@ export default function Pad({
             ${isPressed ? 'scale-90' : ''}
             touch-none select-none
           `}
-          style={{ backfaceVisibility: 'hidden' }}
         >
           {/* Record button - Red dot in top right */}
-          {mode !== 'edit' && (
-            <button
-              className={`
-                absolute top-2 right-2 w-8 h-8 rounded-full z-10
-                ${isRecording ? 'bg-red-600 animate-pulse' : 'bg-red-500 hover:bg-red-600'}
-                shadow-lg transition-all active:scale-90
-              `}
-              onMouseDown={handleRecordStart}
-              onMouseUp={handleRecordEnd}
-              onMouseLeave={handleRecordEnd}
-              onTouchStart={handleRecordStart}
-              onTouchEnd={handleRecordEnd}
-            >
-              <div className="w-full h-full flex items-center justify-center text-white text-xs font-bold">
-                {isRecording ? '●' : '●'}
-              </div>
-            </button>
-          )}
+          <button
+            className={`
+              absolute top-2 right-2 w-8 h-8 rounded-full z-20
+              ${isRecording ? 'bg-red-600 animate-pulse' : 'bg-red-500 hover:bg-red-600'}
+              shadow-lg transition-all active:scale-90
+            `}
+            onMouseDown={handleRecordStart}
+            onMouseUp={handleRecordEnd}
+            onMouseLeave={handleRecordEnd}
+            onTouchStart={handleRecordStart}
+            onTouchEnd={handleRecordEnd}
+          >
+            <div className="w-full h-full flex items-center justify-center text-white text-xs font-bold">
+              ●
+            </div>
+          </button>
+
+          {/* Direction toggle button - Below record button */}
+          <button
+            className="absolute top-12 right-2 w-8 h-8 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
+            onClick={handleDirectionToggle}
+            onTouchEnd={handleDirectionToggle}
+          >
+            {padData.reverse ? (
+              <RotateCcw size={16} className="text-white" strokeWidth={2.5} />
+            ) : (
+              <Play size={16} className="text-white" strokeWidth={2.5} />
+            )}
+          </button>
+
+          {/* Effect toggle button - Below direction button */}
+          <button
+            className="absolute top-[88px] right-2 w-8 h-8 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
+            onClick={handleEffectCycle}
+            onTouchEnd={handleEffectCycle}
+          >
+            {padData.effect === 'none' && (
+              <span className="text-white text-xs font-bold">—</span>
+            )}
+            {padData.effect === 'smurf' && (
+              <span className="text-lg">👶</span>
+            )}
+            {padData.effect === 'troll' && (
+              <span className="text-lg">👹</span>
+            )}
+          </button>
 
           {/* Main pad area for playback */}
           <button
-            className="w-full h-full"
-            onMouseDown={mode !== 'edit' ? handleStart : undefined}
-            onMouseUp={mode !== 'edit' ? handleEnd : undefined}
-            onMouseLeave={mode !== 'edit' ? handleEnd : undefined}
-            onTouchStart={mode !== 'edit' ? handleStart : undefined}
-            onTouchEnd={mode !== 'edit' ? handleEnd : undefined}
-            disabled={mode === 'edit'}
+            className="w-full h-full rounded-2xl"
+            onMouseDown={handleStart}
+            onMouseUp={handleEnd}
+            onMouseLeave={handleEnd}
+            onTouchStart={handleStart}
+            onTouchEnd={handleEnd}
           >
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               {padState === 'recording' && (
                 <>
                   <div className="text-white text-3xl font-bold animate-pulse mb-2">●</div>
                   <div className="text-white text-xs font-semibold">HOLD INNE</div>
                 </>
               )}
-              {padState === 'empty' && mode !== 'edit' && (
+              {padState === 'empty' && (
                 <div className="text-center">
-                  <div className="text-gray-400 text-xs font-medium mb-1">Tom</div>
-                  <div className="text-gray-300 text-xs">Hold rød knapp</div>
+                  <div className="text-gray-700 text-xs font-medium mb-1">Tom</div>
+                  <div className="text-gray-600 text-xs">Hold rød knapp</div>
                 </div>
               )}
             </div>
-
-            {/* Settings indicators - same layout as back side, but without grid */}
-            {padState !== 'recording' && (
-              <>
-                {/* Upper left: Reverse - matches back side position */}
-                {padData.reverse && (
-                  <div className="absolute top-0 left-0 w-1/2 h-1/2 flex items-center justify-center pointer-events-none">
-                    <RotateCcw size={32} className="text-gray-900 opacity-80" strokeWidth={2.5} />
-                  </div>
-                )}
-                
-                {/* Upper right: Forward - matches back side position */}
-                {!padData.reverse && (
-                  <div className="absolute top-0 right-0 w-1/2 h-1/2 flex items-center justify-center pointer-events-none">
-                    <Play size={32} className="text-gray-900 opacity-80" strokeWidth={2.5} />
-                  </div>
-                )}
-                
-                {/* Lower left: Troll - matches back side position */}
-                {padData.effect === 'troll' && (
-                  <div className="absolute bottom-0 left-0 w-1/2 h-1/2 flex items-center justify-center pointer-events-none">
-                    <span className="text-4xl opacity-80">👹</span>
-                  </div>
-                )}
-                
-                {/* Lower right: Smurfe - matches back side position */}
-                {padData.effect === 'smurf' && (
-                  <div className="absolute bottom-0 right-0 w-1/2 h-1/2 flex items-center justify-center pointer-events-none">
-                    <span className="text-4xl opacity-80">👶</span>
-                  </div>
-                )}
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Back side - Edit settings */}
-        <div
-          className={`
-            absolute inset-0 w-full h-full backface-hidden rounded-2xl border-4 bg-white border-purple-300
-            grid grid-cols-2 gap-0
-          `}
-          style={{ 
-            backfaceVisibility: 'hidden',
-            transform: 'rotateY(180deg)',
-          }}
-        >
-          {/* Øvre venstre: Revers */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleReverseToggle(true);
-            }}
-            className={`
-              flex items-center justify-center border-r-2 border-b-2 border-gray-200 transition-all
-              ${localReverse 
-                ? 'bg-purple-500 text-white' 
-                : 'bg-gray-50 text-gray-600 active:bg-gray-100'
-              }
-            `}
-          >
-            <RotateCcw size={32} strokeWidth={2.5} />
-          </button>
-
-          {/* Øvre høyre: Forover */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleReverseToggle(false);
-            }}
-            className={`
-              flex items-center justify-center border-b-2 border-gray-200 transition-all
-              ${!localReverse 
-                ? 'bg-purple-500 text-white' 
-                : 'bg-gray-50 text-gray-600 active:bg-gray-100'
-              }
-            `}
-          >
-            <Play size={32} strokeWidth={2.5} />
-          </button>
-
-          {/* Nedre venstre: Troll */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              // Toggle troll: if already troll, set to none, otherwise set to troll
-              const newEffect = localEffect === 'troll' ? 'none' : 'troll';
-              handleEffectChange({ target: { value: newEffect } } as React.ChangeEvent<HTMLSelectElement>);
-            }}
-            className={`
-              flex items-center justify-center border-r-2 border-gray-200 transition-all
-              ${localEffect === 'troll'
-                ? 'bg-purple-500 text-white' 
-                : 'bg-gray-50 text-gray-600 active:bg-gray-100'
-              }
-            `}
-          >
-            <span className="text-3xl">👹</span>
-          </button>
-
-          {/* Nedre høyre: Smurfe */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              // Toggle smurf: if already smurf, set to none, otherwise set to smurf
-              const newEffect = localEffect === 'smurf' ? 'none' : 'smurf';
-              handleEffectChange({ target: { value: newEffect } } as React.ChangeEvent<HTMLSelectElement>);
-            }}
-            className={`
-              flex items-center justify-center transition-all
-              ${localEffect === 'smurf'
-                ? 'bg-purple-500 text-white' 
-                : 'bg-gray-50 text-gray-600 active:bg-gray-100'
-              }
-            `}
-          >
-            <span className="text-3xl">👶</span>
           </button>
         </div>
       </div>

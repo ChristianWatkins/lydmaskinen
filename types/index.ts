@@ -6,5 +6,3 @@ export interface PadData {
   reverse: boolean;
 }
 
-export type Mode = 'play' | 'edit';
-
