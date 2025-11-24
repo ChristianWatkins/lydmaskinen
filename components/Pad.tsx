@@ -130,7 +130,7 @@ export default function Pad({
           {/* Record button - Top right */}
           <button
             className={`
-              absolute top-2 right-2 w-8 h-8 rounded-full z-20
+              absolute top-2 right-2 w-10 h-10 rounded-full z-20
               ${isRecording ? 'bg-red-600 animate-pulse' : 'bg-red-500 hover:bg-red-600'}
               shadow-lg transition-all active:scale-90
             `}
@@ -140,38 +140,38 @@ export default function Pad({
             onTouchStart={handleRecordStart}
             onTouchEnd={handleRecordEnd}
           >
-            <div className="w-full h-full flex items-center justify-center text-white text-xs font-bold">
+            <div className="w-full h-full flex items-center justify-center text-white text-sm font-bold">
               ●
             </div>
           </button>
 
           {/* Direction toggle button - Middle right */}
           <button
-            className="absolute top-1/2 -translate-y-1/2 right-2 w-8 h-8 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
+            className="absolute top-1/2 -translate-y-1/2 right-2 w-10 h-10 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
             onClick={handleDirectionToggle}
             onTouchEnd={handleDirectionToggle}
           >
             {padData.reverse ? (
-              <RotateCcw size={16} className="text-white" strokeWidth={2.5} />
+              <RotateCcw size={20} className="text-white" strokeWidth={2.5} />
             ) : (
-              <Play size={16} className="text-white" strokeWidth={2.5} />
+              <Play size={20} className="text-white" strokeWidth={2.5} />
             )}
           </button>
 
           {/* Effect toggle button - Bottom right */}
           <button
-            className="absolute bottom-2 right-2 w-8 h-8 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
+            className="absolute bottom-2 right-2 w-10 h-10 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
             onClick={handleEffectCycle}
             onTouchEnd={handleEffectCycle}
           >
             {padData.effect === 'none' && (
-              <span className="text-white text-xs font-bold">—</span>
+              <span className="text-white text-sm font-bold">—</span>
             )}
             {padData.effect === 'smurf' && (
-              <span className="text-lg">👶</span>
+              <span className="text-xl">👶</span>
             )}
             {padData.effect === 'troll' && (
-              <span className="text-lg">👹</span>
+              <span className="text-xl">👹</span>
             )}
           </button>
 
