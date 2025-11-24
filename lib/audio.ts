@@ -157,6 +157,78 @@ export async function stopRecording(): Promise<Blob | null> {
 }
 
 /**
+ * Applies reverb effect to audio blob using Pizzicato.js reverb algorithm
+ */
+async function applyReverbToBlob(blob: Blob): Promise<Blob> {
+  // Create audio context
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  
+  try {
+    // Convert blob to array buffer
+    const arrayBuffer = await blob.arrayBuffer();
+    
+    // Decode audio data
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    
+    // Create offline context for rendering
+    const offlineContext = new OfflineAudioContext(
+      audioBuffer.numberOfChannels,
+      audioBuffer.length + Math.floor(audioBuffer.sampleRate * 0.5), // Add space for reverb tail
+      audioBuffer.sampleRate
+    );
+    
+    // Create source
+    const source = offlineContext.createBufferSource();
+    source.buffer = audioBuffer;
+    
+    // Create reverb using Pizzicato's reverb algorithm (ConvolverNode)
+    const convolver = offlineContext.createConvolver();
+    const reverbTime = 0.5; // seconds
+    const impulseLength = Math.floor(audioBuffer.sampleRate * reverbTime);
+    const impulse = offlineContext.createBuffer(2, impulseLength, audioBuffer.sampleRate);
+    
+    // Generate impulse response (Pizzicato-style reverb)
+    for (let channel = 0; channel < impulse.numberOfChannels; channel++) {
+      const channelData = impulse.getChannelData(channel);
+      for (let i = 0; i < impulseLength; i++) {
+        const decay = Math.pow(1 - i / impulseLength, 0.5);
+        channelData[i] = (Math.random() * 2 - 1) * decay;
+      }
+    }
+    
+    convolver.buffer = impulse;
+    
+    // Mix reverb (50% dry, 50% wet)
+    const dryGain = offlineContext.createGain();
+    const wetGain = offlineContext.createGain();
+    dryGain.gain.value = 0.5;
+    wetGain.gain.value = 0.5;
+    
+    // Connect: source -> dry, source -> convolver -> wet, both -> destination
+    source.connect(dryGain);
+    source.connect(convolver);
+    convolver.connect(wetGain);
+    dryGain.connect(offlineContext.destination);
+    wetGain.connect(offlineContext.destination);
+    
+    source.start(0);
+    
+    // Render
+    const renderedBuffer = await offlineContext.startRendering();
+    
+    // Convert back to WAV blob
+    const wavBlob = audioBufferToWavBlob(renderedBuffer);
+    await audioContext.close();
+    
+    return wavBlob;
+  } catch (error) {
+    await audioContext.close();
+    console.error('Error applying reverb:', error);
+    throw error;
+  }
+}
+
+/**
  * Reverses audio blob using Web Audio API
  */
 async function reverseAudioBlob(blob: Blob): Promise<Blob> {
@@ -263,6 +335,13 @@ export async function playAudio(padData: PadData): Promise<void> {
         console.log('🔄 Reversing audio...');
         audioBlob = await reverseAudioBlob(audioBlob);
         console.log('✓ Audio reversed');
+      }
+      
+      // Apply reverb if needed
+      if (padData.reverb) {
+        console.log('🌊 Applying reverb...');
+        audioBlob = await applyReverbToBlob(audioBlob);
+        console.log('✓ Reverb applied');
       }
       
       // Create URL for the blob
@@ -380,6 +459,7 @@ export async function saveToStorage(pads: PadData[]): Promise<void> {
         effect: pad.effect,
         reverse: pad.reverse,
         volume: pad.volume !== undefined ? pad.volume : 10,
+        reverb: pad.reverb !== undefined ? pad.reverb : false,
       };
     })
   );
@@ -404,6 +484,7 @@ export function loadFromStorage(): Partial<PadData>[] {
         effect: item.effect || 'none',
         reverse: item.reverse || false,
         volume: item.volume !== undefined ? item.volume : 10,
+        reverb: item.reverb !== undefined ? item.reverb : false,
       };
 
       if (item.audioBase64) {

@@ -198,6 +198,12 @@ export default function Pad({
     onSaveEdit(padData.id, { effect: newEffect });
   };
 
+  const handleReverbToggle = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onSaveEdit(padData.id, { reverb: !padData.reverb });
+  };
+
   const hasAudio = !!padData.audioBlob || !!padData.audioUrl;
   const padState = isRecording ? 'recording' : isPlaying ? 'playing' : hasAudio ? 'has-audio' : 'empty';
 
@@ -257,6 +263,19 @@ export default function Pad({
               <RotateCcw size={20} className="text-white" strokeWidth={2.5} />
             ) : (
               <Play size={20} className="text-white" strokeWidth={2.5} />
+            )}
+          </button>
+
+          {/* Reverb toggle button - Between direction and effect */}
+          <button
+            className="absolute top-[calc(50%+3rem)] right-2 w-10 h-10 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
+            onClick={handleReverbToggle}
+            onTouchEnd={handleReverbToggle}
+          >
+            {padData.reverb ? (
+              <span className="text-white text-lg">🌊</span>
+            ) : (
+              <span className="text-white/60 text-lg">🌊</span>
             )}
           </button>
 
