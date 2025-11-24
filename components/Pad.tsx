@@ -151,31 +151,31 @@ export default function Pad({
             {/* Settings indicators - same layout as back side, but without grid */}
             {padState !== 'recording' && (
               <>
-                {/* Upper left: Reverse */}
+                {/* Upper left: Reverse - matches back side position */}
                 {padData.reverse && (
-                  <div className="absolute top-2 left-2 pointer-events-none">
-                    <RotateCcw size={24} className="text-gray-900 opacity-80" strokeWidth={2.5} />
+                  <div className="absolute top-0 left-0 w-1/2 h-1/2 flex items-center justify-center pointer-events-none">
+                    <RotateCcw size={32} className="text-gray-900 opacity-80" strokeWidth={2.5} />
                   </div>
                 )}
                 
-                {/* Upper right: Forward */}
+                {/* Upper right: Forward - matches back side position */}
                 {!padData.reverse && (
-                  <div className="absolute top-2 right-2 pointer-events-none">
-                    <Play size={24} className="text-gray-900 opacity-80" strokeWidth={2.5} />
+                  <div className="absolute top-0 right-0 w-1/2 h-1/2 flex items-center justify-center pointer-events-none">
+                    <Play size={32} className="text-gray-900 opacity-80" strokeWidth={2.5} />
                   </div>
                 )}
                 
-                {/* Lower left: Troll */}
+                {/* Lower left: Troll - matches back side position */}
                 {padData.effect === 'troll' && (
-                  <div className="absolute bottom-2 left-2 pointer-events-none">
-                    <span className="text-3xl opacity-80">👹</span>
+                  <div className="absolute bottom-0 left-0 w-1/2 h-1/2 flex items-center justify-center pointer-events-none">
+                    <span className="text-4xl opacity-80">👹</span>
                   </div>
                 )}
                 
-                {/* Lower right: Smurfe */}
+                {/* Lower right: Smurfe - matches back side position */}
                 {padData.effect === 'smurf' && (
-                  <div className="absolute bottom-2 right-2 pointer-events-none">
-                    <span className="text-3xl opacity-80">👶</span>
+                  <div className="absolute bottom-0 right-0 w-1/2 h-1/2 flex items-center justify-center pointer-events-none">
+                    <span className="text-4xl opacity-80">👶</span>
                   </div>
                 )}
               </>
