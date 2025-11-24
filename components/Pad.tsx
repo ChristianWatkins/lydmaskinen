@@ -2,7 +2,7 @@
 
 import { PadData } from '@/types';
 import { useState, useEffect, useRef } from 'react';
-import { RotateCcw, Play } from 'lucide-react';
+import { Undo2, Play, CornerDownLeft } from 'lucide-react';
 
 interface PadProps {
   padData: PadData;
@@ -255,7 +255,7 @@ export default function Pad({
             onTouchEnd={handleDirectionToggle}
           >
             {padData.reverse ? (
-              <RotateCcw size={20} className="text-white" strokeWidth={2.5} />
+              <Undo2 size={20} className="text-white" strokeWidth={2.5} />
             ) : (
               <Play size={20} className="text-white" strokeWidth={2.5} />
             )}
