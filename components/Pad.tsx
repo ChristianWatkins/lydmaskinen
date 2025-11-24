@@ -2,7 +2,7 @@
 
 import { PadData } from '@/types';
 import { useState, useEffect, useRef } from 'react';
-import { Undo2, Play, CornerDownLeft } from 'lucide-react';
+import { Undo2, ArrowRight, CornerDownLeft } from 'lucide-react';
 
 interface PadProps {
   padData: PadData;
@@ -257,7 +257,7 @@ export default function Pad({
             {padData.reverse ? (
               <Undo2 size={20} className="text-white" strokeWidth={2.5} />
             ) : (
-              <Play size={20} className="text-white" strokeWidth={2.5} />
+              <ArrowRight size={20} className="text-white" strokeWidth={2.5} />
             )}
           </button>
 
