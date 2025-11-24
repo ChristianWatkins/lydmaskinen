@@ -155,15 +155,18 @@ export default function Pad({
     e.stopPropagation();
     
     // Cycle through: smurf (baby) → none (neutral) → troll → smurf
+    const currentEffect = padData.effect || 'none';
     let newEffect: PadData['effect'];
-    if (padData.effect === 'smurf') {
+    
+    if (currentEffect === 'smurf') {
       newEffect = 'none'; // baby → neutral
-    } else if (padData.effect === 'none') {
+    } else if (currentEffect === 'none') {
       newEffect = 'troll'; // neutral → troll
     } else {
       newEffect = 'smurf'; // troll → baby
     }
     
+    console.log('Effect cycle:', currentEffect, '→', newEffect);
     onSaveEdit(padData.id, { effect: newEffect });
   };
 
@@ -232,8 +235,8 @@ export default function Pad({
           {/* Effect toggle button - Bottom right */}
           <button
             className="absolute bottom-2 right-2 w-10 h-10 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
-            onClick={handleEffectCycle}
-            onTouchEnd={handleEffectCycle}
+            onMouseDown={handleEffectCycle}
+            onTouchStart={handleEffectCycle}
           >
             {padData.effect === 'none' && (
               <span className="text-white text-sm font-bold">—</span>
