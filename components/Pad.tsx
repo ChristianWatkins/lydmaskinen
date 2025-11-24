@@ -42,6 +42,10 @@ export default function Pad({
 
     console.log('handleStart called, mode:', mode);
     
+    // Always initialize AudioContext on first interaction
+    const { initializeAudioContext } = await import('@/lib/audio');
+    await initializeAudioContext();
+    
     if (mode === 'record') {
       // Start recording - don't play audio
       console.log('Starting recording for pad:', padData.id);

@@ -8,16 +8,31 @@ let isAudioContextInitialized = false;
  * Must be called within a user event handler
  */
 export async function initializeAudioContext(): Promise<AudioContext> {
-  if (audioContext && isAudioContextInitialized) {
+  if (audioContext && isAudioContextInitialized && audioContext.state === 'running') {
     return audioContext;
   }
 
-  // Create new AudioContext
-  audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  // Create new AudioContext if it doesn't exist
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  }
   
   // Resume if suspended (required for autoplay policy)
   if (audioContext.state === 'suspended') {
+    console.log('AudioContext suspended, resuming...');
     await audioContext.resume();
+    console.log('AudioContext state after resume:', audioContext.state);
+  }
+  
+  // If still not running, try to resume again
+  if (audioContext.state !== 'running') {
+    console.log('AudioContext not running, attempting to resume again...');
+    try {
+      await audioContext.resume();
+      console.log('AudioContext state after second resume:', audioContext.state);
+    } catch (error) {
+      console.error('Failed to resume AudioContext:', error);
+    }
   }
   
   isAudioContextInitialized = true;
