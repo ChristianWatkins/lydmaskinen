@@ -150,38 +150,12 @@ export async function stopRecording(): Promise<Blob | null> {
       if (recordingChunks.length > 0) {
         const originalBlob = new Blob(recordingChunks, { type: 'audio/webm' });
         
-        try {
-          // Decode audio and trim silence
-          const context = await initializeAudioContext();
-          const arrayBuffer = await blobToArrayBuffer(originalBlob);
-          let audioBuffer = await context.decodeAudioData(arrayBuffer);
-          
-          // Only trim if audio is longer than 200ms (avoid trimming very short clips)
-          if (audioBuffer.length > audioBuffer.sampleRate * 0.2) {
-            // Trim silence from start and end
-            const trimmedBuffer = await trimSilence(audioBuffer);
-            
-            // Only use trimmed version if it's not too short (at least 100ms)
-            if (trimmedBuffer.length > audioBuffer.sampleRate * 0.1) {
-              audioBuffer = trimmedBuffer;
-            }
-          }
-          
-          // Convert back to blob (keep original WebM format for compatibility)
-          // For now, return original blob and trim on playback instead
-          // This avoids format conversion issues
-          currentMediaRecorder = null;
-          recordingChunks = [];
-          isRecordingActive = false;
-          resolve(originalBlob);
-        } catch (error) {
-          console.error('Error processing audio:', error);
-          // If processing fails, return original blob
-          currentMediaRecorder = null;
-          recordingChunks = [];
-          isRecordingActive = false;
-          resolve(originalBlob);
-        }
+        // Return original blob without processing for now
+        // Trimming can be re-enabled later if needed
+        currentMediaRecorder = null;
+        recordingChunks = [];
+        isRecordingActive = false;
+        resolve(originalBlob);
       } else {
         currentMediaRecorder = null;
         recordingChunks = [];
@@ -418,46 +392,87 @@ async function applyEffectToBuffer(
  */
 export async function playAudio(padData: PadData): Promise<void> {
   if (!padData.audioBlob) {
+    console.warn('No audio blob to play');
     return;
   }
 
-  const context = await initializeAudioContext();
-  
-  // Convert blob to array buffer
-  const arrayBuffer = await blobToArrayBuffer(padData.audioBlob);
-  
-  // Decode audio data
-  let audioBuffer = await context.decodeAudioData(arrayBuffer);
-
-  // Trim silence on playback (only if audio is longer than 200ms)
-  if (audioBuffer.length > audioBuffer.sampleRate * 0.2) {
-    const trimmedBuffer = await trimSilence(audioBuffer);
-    // Only use trimmed if it's not too short (at least 100ms)
-    if (trimmedBuffer.length > audioBuffer.sampleRate * 0.1) {
-      audioBuffer = trimmedBuffer;
+  try {
+    const context = await initializeAudioContext();
+    
+    // Convert blob to array buffer
+    const arrayBuffer = await blobToArrayBuffer(padData.audioBlob);
+    
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+      console.error('Empty array buffer');
+      return;
     }
-  }
-
-  // Apply reverse if needed
-  if (padData.reverse) {
-    audioBuffer = await reverseAudioBuffer(audioBuffer);
-  }
-
-  // Apply effect
-  audioBuffer = await applyEffectToBuffer(audioBuffer, padData.effect);
-
-  // Create source and play
-  return new Promise((resolve) => {
-    const source = context.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(context.destination);
     
-    source.onended = () => {
-      resolve();
-    };
-    
-    source.start(0);
-  });
+    // Decode audio data
+    let audioBuffer: AudioBuffer;
+    try {
+      audioBuffer = await context.decodeAudioData(arrayBuffer);
+    } catch (error) {
+      console.error('Error decoding audio data:', error);
+      return;
+    }
+
+    if (!audioBuffer || audioBuffer.length === 0) {
+      console.error('Empty audio buffer');
+      return;
+    }
+
+    // Temporarily disable trimming to test if it's causing issues
+    // TODO: Re-enable trimming with better logic
+    /*
+    // Trim silence on playback (only if audio is longer than 200ms)
+    if (audioBuffer.length > audioBuffer.sampleRate * 0.2) {
+      try {
+        const trimmedBuffer = await trimSilence(audioBuffer);
+        // Only use trimmed if it's not too short (at least 100ms)
+        if (trimmedBuffer.length > audioBuffer.sampleRate * 0.1) {
+          audioBuffer = trimmedBuffer;
+        }
+      } catch (error) {
+        console.error('Error trimming audio:', error);
+        // Continue with original buffer if trimming fails
+      }
+    }
+    */
+
+    // Apply reverse if needed
+    if (padData.reverse) {
+      audioBuffer = await reverseAudioBuffer(audioBuffer);
+    }
+
+    // Apply effect
+    audioBuffer = await applyEffectToBuffer(audioBuffer, padData.effect);
+
+    // Create source and play
+    return new Promise((resolve, reject) => {
+      try {
+        const source = context.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(context.destination);
+        
+        source.onended = () => {
+          resolve();
+        };
+        
+        source.onerror = (error) => {
+          console.error('Audio source error:', error);
+          reject(error);
+        };
+        
+        source.start(0);
+      } catch (error) {
+        console.error('Error starting audio playback:', error);
+        reject(error);
+      }
+    });
+  } catch (error) {
+    console.error('Error in playAudio:', error);
+    throw error;
+  }
 }
 
 /**
