@@ -3,6 +3,8 @@ import { PadData } from '@/types';
 let audioContext: AudioContext | null = null;
 let isAudioContextInitialized = false;
 
+let keepAliveSource: AudioBufferSourceNode | null = null;
+
 /**
  * Initializes AudioContext on first user interaction (required for autoplay policy)
  * Must be called within a user event handler
@@ -32,6 +34,24 @@ export async function initializeAudioContext(): Promise<AudioContext> {
       console.log('AudioContext state after second resume:', audioContext.state);
     } catch (error) {
       console.error('Failed to resume AudioContext:', error);
+    }
+  }
+  
+  // Keep AudioContext alive by playing a very short silent tone
+  // This prevents it from suspending again
+  if (audioContext.state === 'running' && !keepAliveSource) {
+    try {
+      const buffer = audioContext.createBuffer(1, 1, 22050);
+      keepAliveSource = audioContext.createBufferSource();
+      keepAliveSource.buffer = buffer;
+      keepAliveSource.connect(audioContext.destination);
+      keepAliveSource.start(0);
+      keepAliveSource.onended = () => {
+        keepAliveSource = null;
+      };
+      console.log('AudioContext keep-alive tone started');
+    } catch (error) {
+      console.error('Failed to start keep-alive tone:', error);
     }
   }
   
@@ -431,14 +451,20 @@ export async function playAudio(padData: PadData): Promise<void> {
       }
     }
     
+    // If still suspended, try starting a silent tone to wake it up
     if (context.state !== 'running') {
-      console.error('AudioContext failed to start, state:', context.state);
-      // Try one more time with a user gesture simulation
+      console.log('AudioContext still not running, trying to wake it up with silent tone...');
       try {
+        const buffer = context.createBuffer(1, 1, 22050);
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+        source.connect(context.destination);
+        source.start(0);
+        source.stop(0.001);
         await context.resume();
-        console.log('Final AudioContext state:', context.state);
+        console.log('AudioContext state after wake-up:', context.state);
       } catch (error) {
-        console.error('Failed to resume AudioContext:', error);
+        console.error('Failed to wake up AudioContext:', error);
       }
     }
     
