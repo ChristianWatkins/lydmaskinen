@@ -315,7 +315,18 @@ function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
 }
 
 /**
+ * Gets or creates AudioContext for Web Audio API playback
+ */
+function getWebAudioContext(): AudioContext {
+  if (typeof window === 'undefined') {
+    throw new Error('AudioContext not available');
+  }
+  return new (window.AudioContext || (window as any).webkitAudioContext)();
+}
+
+/**
  * Plays audio using Howler.js - handles all the mobile quirks automatically!
+ * If reverb is enabled, uses Web Audio API directly for real-time reverb tail
  */
 export async function playAudio(padData: PadData): Promise<void> {
   if (!padData.audioBlob) {
@@ -325,6 +336,12 @@ export async function playAudio(padData: PadData): Promise<void> {
 
   console.log('🎵 playAudio called - blob size:', padData.audioBlob.size, 'bytes');
 
+  // If reverb is enabled, use Web Audio API directly for real-time reverb tail
+  if (padData.reverb) {
+    return playAudioWithReverb(padData);
+  }
+
+  // Otherwise use Howler.js (simpler and handles mobile quirks)
   return new Promise(async (resolve, reject) => {
     try {
       // TypeScript now knows audioBlob is defined
@@ -335,13 +352,6 @@ export async function playAudio(padData: PadData): Promise<void> {
         console.log('🔄 Reversing audio...');
         audioBlob = await reverseAudioBlob(audioBlob);
         console.log('✓ Audio reversed');
-      }
-      
-      // Apply reverb if needed
-      if (padData.reverb) {
-        console.log('🌊 Applying reverb...');
-        audioBlob = await applyReverbToBlob(audioBlob);
-        console.log('✓ Reverb applied');
       }
       
       // Create URL for the blob
@@ -409,6 +419,108 @@ export async function playAudio(padData: PadData): Promise<void> {
       reject(error);
     }
   });
+}
+
+/**
+ * Plays audio with real-time reverb using Web Audio API
+ * Reverb tail continues after source stops
+ */
+async function playAudioWithReverb(padData: PadData): Promise<void> {
+  const audioContext = getWebAudioContext();
+  
+  // Ensure context is running
+  if (audioContext.state === 'suspended') {
+    await audioContext.resume();
+  }
+
+  try {
+    let audioBlob = padData.audioBlob!;
+    
+    // Apply reverse if needed
+    if (padData.reverse) {
+      console.log('🔄 Reversing audio...');
+      audioBlob = await reverseAudioBlob(audioBlob);
+      console.log('✓ Audio reversed');
+    }
+
+    // Decode audio
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+    // Calculate playback rate based on effect
+    let rate = 1.0;
+    if (padData.effect === 'smurf') {
+      rate = 1.5;
+    } else if (padData.effect === 'troll') {
+      rate = 0.6;
+    }
+
+    // Get volume
+    const volumeRaw = padData.volume !== undefined ? padData.volume : 10;
+    const volume = Math.max(0, Math.min(1.0, volumeRaw / 10));
+
+    // Create source
+    const source = audioContext.createBufferSource();
+    source.buffer = audioBuffer;
+    source.playbackRate.value = rate;
+
+    // Create reverb (ConvolverNode)
+    const convolver = audioContext.createConvolver();
+    const reverbTime = 0.5; // seconds
+    const impulseLength = Math.floor(audioBuffer.sampleRate * reverbTime);
+    const impulse = audioContext.createBuffer(2, impulseLength, audioBuffer.sampleRate);
+
+    // Generate impulse response
+    for (let channel = 0; channel < impulse.numberOfChannels; channel++) {
+      const channelData = impulse.getChannelData(channel);
+      for (let i = 0; i < impulseLength; i++) {
+        const decay = Math.pow(1 - i / impulseLength, 0.5);
+        channelData[i] = (Math.random() * 2 - 1) * decay;
+      }
+    }
+
+    convolver.buffer = impulse;
+
+    // Create gain nodes for dry/wet mix
+    const dryGain = audioContext.createGain();
+    const wetGain = audioContext.createGain();
+    const masterGain = audioContext.createGain();
+    
+    dryGain.gain.value = 0.5;
+    wetGain.gain.value = 0.5;
+    masterGain.gain.value = volume;
+
+    // Connect: source -> dry -> master, source -> convolver -> wet -> master -> destination
+    source.connect(dryGain);
+    source.connect(convolver);
+    convolver.connect(wetGain);
+    dryGain.connect(masterGain);
+    wetGain.connect(masterGain);
+    masterGain.connect(audioContext.destination);
+
+    // Calculate duration including reverb tail
+    const sourceDuration = audioBuffer.duration / rate;
+    const reverbTailDuration = reverbTime;
+    const totalDuration = sourceDuration + reverbTailDuration;
+
+    return new Promise((resolve) => {
+      source.onended = () => {
+        console.log('✓ Source ended, reverb tail continues...');
+      };
+
+      source.start(0);
+      console.log('▶️ Audio with reverb started');
+
+      // Resolve after reverb tail finishes
+      setTimeout(() => {
+        console.log('✓ Reverb tail finished');
+        resolve();
+      }, totalDuration * 1000);
+    });
+  } catch (error) {
+    console.error('❌ Error in playAudioWithReverb:', error);
+    throw error;
+  }
 }
 
 /**
