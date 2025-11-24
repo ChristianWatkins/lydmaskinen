@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { PadData, Mode } from '@/types';
 import Pad from '@/components/Pad';
-import { playAudio, saveToStorage, loadFromStorage, unlockAudio, isAudioReady } from '@/lib/audio';
+import { playAudio, saveToStorage, loadFromStorage } from '@/lib/audio';
 
 export default function Home() {
   const [mode, setMode] = useState<Mode>('play');
@@ -17,12 +17,6 @@ export default function Home() {
   });
   const [recordingPadId, setRecordingPadId] = useState<string | null>(null);
   const [playingPadId, setPlayingPadId] = useState<string | null>(null);
-  const [audioUnlocked, setAudioUnlocked] = useState(false);
-
-  // Check if audio is ready on mount
-  useEffect(() => {
-    setAudioUnlocked(isAudioReady());
-  }, []);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -86,21 +80,13 @@ export default function Home() {
 
     setPlayingPadId(padId);
     try {
-      // playAudio will handle initialization internally
-      // This ensures resume() is called in the right context
+      // Howler.js handles audio unlocking automatically
       await playAudio(pad);
       console.log('Playback completed successfully');
     } catch (error) {
       console.error('Playback error:', error);
     } finally {
       setPlayingPadId(null);
-    }
-  };
-
-  const handleUnlockAudio = async () => {
-    const success = await unlockAudio();
-    if (success) {
-      setAudioUnlocked(true);
     }
   };
 
@@ -115,20 +101,6 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-orange-100 p-4">
       <div className="max-w-md mx-auto">
-        {/* Unlock Audio Banner */}
-        {!audioUnlocked && (
-          <div className="mb-4 bg-yellow-100 border-2 border-yellow-400 rounded-2xl p-4 text-center">
-            <p className="text-gray-800 font-semibold mb-2">🔊 Lyd må aktiveres</p>
-            <p className="text-gray-600 text-sm mb-3">Trykk for å aktivere lyd på enheten din</p>
-            <button
-              onClick={handleUnlockAudio}
-              className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-6 rounded-full transition-colors"
-            >
-              Aktiver lyd
-            </button>
-          </div>
-        )}
-
         {/* Mode Toggle */}
         <div className="mb-6 bg-white/80 backdrop-blur-sm rounded-2xl p-4">
           <div className="flex items-center justify-between">
