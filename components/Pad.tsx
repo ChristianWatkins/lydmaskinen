@@ -29,12 +29,22 @@ export default function Pad({
   const [showVolumeIndicator, setShowVolumeIndicator] = useState(false);
   const [currentVolume, setCurrentVolume] = useState<number>(padData.volume !== undefined ? padData.volume : 10);
   const [startVolume, setStartVolume] = useState<number>(padData.volume !== undefined ? padData.volume : 10);
+  const [neutralState, setNeutralState] = useState<'from-baby' | 'from-troll'>('from-baby');
   const padRef = useRef<HTMLDivElement>(null);
 
   // Sync currentVolume with padData.volume
   useEffect(() => {
     setCurrentVolume(padData.volume !== undefined ? padData.volume : 10);
   }, [padData.volume]);
+
+  // Sync neutralState when effect changes externally
+  useEffect(() => {
+    if (padData.effect === 'smurf') {
+      setNeutralState('from-baby');
+    } else if (padData.effect === 'troll') {
+      setNeutralState('from-troll');
+    }
+  }, [padData.effect]);
 
   const handleStart = async (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
@@ -154,24 +164,37 @@ export default function Pad({
     e.preventDefault();
     e.stopPropagation();
     
-    // Cycle: baby (smurf) → neutral (none) → troll → baby
+    // Cycle with two neutrals hack: neutral1 → baby → neutral2 → troll → neutral1
     const currentEffect = padData.effect || 'none';
     let newEffect: PadData['effect'];
-    
-    console.log('Current effect before cycle:', currentEffect);
+    let newNeutralState: 'from-baby' | 'from-troll' = neutralState;
     
     if (currentEffect === 'smurf') {
-      newEffect = 'none'; // baby → neutral
+      // baby → neutral (neutral2, from baby)
+      newEffect = 'none';
+      newNeutralState = 'from-baby';
     } else if (currentEffect === 'none') {
-      newEffect = 'troll'; // neutral → troll
+      // neutral → depends on which neutral we're in
+      if (neutralState === 'from-baby') {
+        // neutral (from baby) → troll
+        newEffect = 'troll';
+        newNeutralState = 'from-troll';
+      } else {
+        // neutral (from troll) → baby
+        newEffect = 'smurf';
+        newNeutralState = 'from-baby';
+      }
     } else if (currentEffect === 'troll') {
-      newEffect = 'smurf'; // troll → baby
+      // troll → neutral (neutral1, from troll)
+      newEffect = 'none';
+      newNeutralState = 'from-troll';
     } else {
-      // Fallback: start from neutral
+      // Fallback
       newEffect = 'troll';
     }
     
-    console.log('Effect cycle:', currentEffect, '→', newEffect);
+    setNeutralState(newNeutralState);
+    console.log('Effect cycle:', currentEffect, '→', newEffect, '(neutral state:', newNeutralState, ')');
     onSaveEdit(padData.id, { effect: newEffect });
   };
 
