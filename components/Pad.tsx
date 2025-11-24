@@ -148,49 +148,37 @@ export default function Pad({
               )}
             </div>
 
-            {/* Settings indicators - same layout as back side */}
-            {padState !== 'recording' && padState !== 'playing' && (
-              <div className="absolute inset-0 grid grid-cols-2 gap-0 pointer-events-none">
+            {/* Settings indicators - same layout as back side, but without grid */}
+            {padState !== 'recording' && (
+              <>
                 {/* Upper left: Reverse */}
-                <div className={`
-                  flex items-center justify-center border-r border-b border-black/20
-                  ${padData.reverse ? 'bg-black/30' : 'bg-transparent'}
-                `}>
-                  {padData.reverse && (
-                    <RotateCcw size={24} className="text-gray-900" strokeWidth={2.5} />
-                  )}
-                </div>
+                {padData.reverse && (
+                  <div className="absolute top-2 left-2 pointer-events-none">
+                    <RotateCcw size={24} className="text-gray-900 opacity-80" strokeWidth={2.5} />
+                  </div>
+                )}
                 
                 {/* Upper right: Forward */}
-                <div className={`
-                  flex items-center justify-center border-b border-black/20
-                  ${!padData.reverse ? 'bg-black/30' : 'bg-transparent'}
-                `}>
-                  {!padData.reverse && (
-                    <Play size={24} className="text-gray-900" strokeWidth={2.5} />
-                  )}
-                </div>
+                {!padData.reverse && (
+                  <div className="absolute top-2 right-2 pointer-events-none">
+                    <Play size={24} className="text-gray-900 opacity-80" strokeWidth={2.5} />
+                  </div>
+                )}
                 
                 {/* Lower left: Troll */}
-                <div className={`
-                  flex items-center justify-center border-r border-black/20
-                  ${padData.effect === 'troll' ? 'bg-black/30' : 'bg-transparent'}
-                `}>
-                  {padData.effect === 'troll' && (
-                    <span className="text-3xl">👹</span>
-                  )}
-                </div>
+                {padData.effect === 'troll' && (
+                  <div className="absolute bottom-2 left-2 pointer-events-none">
+                    <span className="text-3xl opacity-80">👹</span>
+                  </div>
+                )}
                 
                 {/* Lower right: Smurfe */}
-                <div className={`
-                  flex items-center justify-center
-                  ${padData.effect === 'smurf' ? 'bg-black/30' : 'bg-transparent'}
-                `}>
-                  {padData.effect === 'smurf' && (
-                    <span className="text-3xl">👶</span>
-                  )}
-                </div>
-              </div>
+                {padData.effect === 'smurf' && (
+                  <div className="absolute bottom-2 right-2 pointer-events-none">
+                    <span className="text-3xl opacity-80">👶</span>
+                  </div>
+                )}
+              </>
             )}
           </button>
         </div>
