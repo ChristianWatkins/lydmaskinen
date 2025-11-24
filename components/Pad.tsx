@@ -25,16 +25,24 @@ export default function Pad({
 }: PadProps) {
   const [isPressed, setIsPressed] = useState(false);
   const [isRecordingStarted, setIsRecordingStarted] = useState(false);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const [showVolumeIndicator, setShowVolumeIndicator] = useState(false);
 
   const handleStart = async (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     setIsPressed(true);
 
+    // Track touch start position for swipe detection
+    if ('touches' in e && e.touches.length > 0) {
+      setTouchStartY(e.touches[0].clientY);
+    } else if ('clientY' in e) {
+      setTouchStartY(e.clientY);
+    }
+
     console.log('👆 handleStart called, padId:', padData.id);
     
-    // Always play in main area (record button is separate)
-    console.log('🎵 Attempting to play audio for pad:', padData.id, 'hasAudio:', !!padData.audioBlob);
-    onPlay(padData.id);
+    // Don't play immediately - wait to see if it's a swipe gesture
+    // Play will happen in handleEnd if no swipe detected
   };
 
   const handleRecordStart = async (e: React.MouseEvent | React.TouchEvent) => {
@@ -71,7 +79,56 @@ export default function Pad({
 
   const handleEnd = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
+    
+    let wasSwipe = false;
+    
+    // Check for swipe gesture
+    if (touchStartY !== null) {
+      let endY: number;
+      if ('changedTouches' in e && e.changedTouches.length > 0) {
+        endY = e.changedTouches[0].clientY;
+      } else if ('clientY' in e) {
+        endY = e.clientY;
+      } else {
+        setIsPressed(false);
+        setTouchStartY(null);
+        return;
+      }
+
+      const deltaY = touchStartY - endY; // Positive = swipe up, Negative = swipe down
+      const swipeThreshold = 30; // Minimum pixels for a swipe
+
+      if (Math.abs(deltaY) > swipeThreshold) {
+        // Swipe detected - adjust volume
+        wasSwipe = true;
+        const currentVolume = padData.volume !== undefined ? padData.volume : 1.0;
+        const volumeStep = 0.1;
+        let newVolume: number;
+
+        if (deltaY > 0) {
+          // Swipe up - increase volume
+          newVolume = Math.min(1.0, currentVolume + volumeStep);
+        } else {
+          // Swipe down - decrease volume
+          newVolume = Math.max(0.0, currentVolume - volumeStep);
+        }
+
+        onSaveEdit(padData.id, { volume: newVolume });
+        
+        // Show volume indicator briefly
+        setShowVolumeIndicator(true);
+        setTimeout(() => setShowVolumeIndicator(false), 1000);
+      }
+    }
+
+    // Only play audio if it wasn't a swipe gesture
+    if (!wasSwipe && (padData.audioBlob || padData.audioUrl)) {
+      console.log('🎵 Playing audio for pad:', padData.id);
+      onPlay(padData.id);
+    }
+
     setIsPressed(false);
+    setTouchStartY(null);
   };
 
   const handleDirectionToggle = (e: React.MouseEvent | React.TouchEvent) => {
@@ -195,6 +252,22 @@ export default function Pad({
                 <div className="text-center">
                   <div className="text-gray-700 text-xs font-medium mb-1">Tom</div>
                   <div className="text-gray-600 text-xs">Hold rød knapp</div>
+                </div>
+              )}
+              
+              {/* Volume indicator */}
+              {showVolumeIndicator && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm rounded-2xl">
+                  <div className="text-white text-2xl font-bold mb-2">
+                    🔊 {Math.round((padData.volume !== undefined ? padData.volume : 1.0) * 100)}%
+                  </div>
+                  {/* Volume bar */}
+                  <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-white rounded-full transition-all duration-200"
+                      style={{ width: `${(padData.volume !== undefined ? padData.volume : 1.0) * 100}%` }}
+                    />
+                  </div>
                 </div>
               )}
             </div>

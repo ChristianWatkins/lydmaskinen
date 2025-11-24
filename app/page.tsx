@@ -12,6 +12,7 @@ export default function Home() {
       id: `pad-${i}`,
       effect: 'none' as const,
       reverse: false,
+      volume: 1.0,
     }));
   });
   const [recordingPadId, setRecordingPadId] = useState<string | null>(null);

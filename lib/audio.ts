@@ -283,13 +283,16 @@ export async function playAudio(padData: PadData): Promise<void> {
         rate = 0.6; // Lower pitch, slower
       }
 
+      // Get volume from padData (default to 1.0 if not set)
+      const volume = padData.volume !== undefined ? padData.volume : 1.0;
+
       // Create new Howl instance
       const sound = new Howl({
         src: [audioUrl],
         format: ['webm', 'wav'], // Support both formats
         html5: false, // Use Web Audio API for better control
         rate: rate,
-        volume: 1.0,
+        volume: volume,
         onload: () => {
           console.log('✓ Audio loaded successfully');
         },
@@ -375,6 +378,7 @@ export async function saveToStorage(pads: PadData[]): Promise<void> {
         audioBase64,
         effect: pad.effect,
         reverse: pad.reverse,
+        volume: pad.volume !== undefined ? pad.volume : 1.0,
       };
     })
   );
@@ -398,6 +402,7 @@ export function loadFromStorage(): Partial<PadData>[] {
         id: item.id,
         effect: item.effect || 'none',
         reverse: item.reverse || false,
+        volume: item.volume !== undefined ? item.volume : 1.0,
       };
 
       if (item.audioBase64) {
