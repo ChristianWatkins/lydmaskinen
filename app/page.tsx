@@ -98,7 +98,12 @@ export default function Home() {
               <button
                 onClick={() => {
                   initializeAudioContext();
-                  setMode(mode === 'record' ? 'play' : 'record');
+                  // Toggle between record and play (not edit)
+                  if (mode === 'record') {
+                    setMode('play');
+                  } else {
+                    setMode('record');
+                  }
                 }}
                 className={`
                   relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-200 ease-in-out cursor-pointer

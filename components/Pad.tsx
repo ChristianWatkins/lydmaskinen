@@ -40,16 +40,21 @@ export default function Pad({
     e.preventDefault();
     setIsPressed(true);
 
+    console.log('handleStart called, mode:', mode);
+    
     if (mode === 'record') {
-      // Start recording
+      // Start recording - don't play audio
+      console.log('Starting recording for pad:', padData.id);
       onRecordStart(padData.id);
       const { startRecording } = await import('@/lib/audio');
       const started = await startRecording();
       setIsRecordingStarted(started);
     } else if (mode === 'play') {
-      // Play audio
+      // Play audio - only in play mode
+      console.log('Playing audio for pad:', padData.id);
       onPlay(padData.id);
     }
+    // Edit mode is handled by handleClick
   };
 
   const handleEnd = async (e: React.MouseEvent | React.TouchEvent) => {
