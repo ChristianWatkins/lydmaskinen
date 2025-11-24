@@ -52,12 +52,12 @@ export default function Pad({
       setIsRecordingStarted(started);
       console.log('Recording started:', started);
     } else if (mode === 'play') {
-      // CRITICAL FOR MOBILE: Initialize AudioContext synchronously from user event
-      // This ensures AudioContext is created and resume() is triggered in the same callstack
-      console.log('Initializing AudioContext from user interaction...');
-      initializeAudioContext().catch(err => {
-        console.error('Failed to initialize AudioContext in handleStart:', err);
-      });
+      // CRITICAL FOR MOBILE: Pre-initialize AudioContext from user event to satisfy autoplay policy
+      // This ensures AudioContext is created in the same callstack as the touch/click event
+      console.log('Pre-initializing AudioContext from user interaction...');
+      // Fire and forget - let it initialize in the background
+      // The actual playback will wait for it to complete
+      initializeAudioContext();
       
       // Play audio - only in play mode
       console.log('Attempting to play audio for pad:', padData.id, 'hasAudio:', !!padData.audioBlob);

@@ -18,10 +18,10 @@ export async function initializeAudioContext(): Promise<AudioContext> {
     console.log('New AudioContext created synchronously. State:', audioContext.state);
   }
   
-  // If already initializing, return the same promise
+  // If already initializing, wait for it to complete
   if (initPromise) {
-    console.log('AudioContext initialization already in progress...');
-    return initPromise;
+    console.log('AudioContext initialization already in progress, waiting...');
+    return await initPromise;
   }
   
   // If already running, return immediately
@@ -32,35 +32,32 @@ export async function initializeAudioContext(): Promise<AudioContext> {
 
   // Create initialization promise for resume operation
   initPromise = (async () => {
-    try {
-      // Resume if suspended (required for autoplay policy)
-      // This resume() must be triggered from the same callstack as user interaction
-      if (audioContext!.state === 'suspended') {
-        console.log('AudioContext suspended, resuming synchronously...');
-        await audioContext!.resume();
-        console.log('AudioContext state after resume:', audioContext!.state);
-      }
-      
-      // Start keep-alive oscillator if running (prevents context from suspending on mobile)
-      if (audioContext!.state === 'running' && !keepAliveOscillator) {
-        try {
-          keepAliveOscillator = audioContext!.createOscillator();
-          keepAliveGain = audioContext!.createGain();
-          keepAliveGain.gain.value = 0; // Silent
-          keepAliveOscillator.connect(keepAliveGain);
-          keepAliveGain.connect(audioContext!.destination);
-          keepAliveOscillator.start(0);
-          console.log('Keep-alive oscillator started');
-        } catch (error) {
-          console.error('Failed to start keep-alive oscillator:', error);
-        }
-      }
-      
-      return audioContext!;
-    } finally {
-      // Clear the promise so future calls can proceed
-      initPromise = null;
+    // Resume if suspended (required for autoplay policy)
+    // This resume() must be triggered from the same callstack as user interaction
+    if (audioContext!.state === 'suspended') {
+      console.log('AudioContext suspended, resuming synchronously...');
+      await audioContext!.resume();
+      console.log('AudioContext state after resume:', audioContext!.state);
     }
+    
+    // Start keep-alive oscillator if running (prevents context from suspending on mobile)
+    if (audioContext!.state === 'running' && !keepAliveOscillator) {
+      try {
+        keepAliveOscillator = audioContext!.createOscillator();
+        keepAliveGain = audioContext!.createGain();
+        keepAliveGain.gain.value = 0; // Silent
+        keepAliveOscillator.connect(keepAliveGain);
+        keepAliveGain.connect(audioContext!.destination);
+        keepAliveOscillator.start(0);
+        console.log('Keep-alive oscillator started');
+      } catch (error) {
+        console.error('Failed to start keep-alive oscillator:', error);
+      }
+    }
+    
+    // Clear the promise after successful initialization
+    initPromise = null;
+    return audioContext!;
   })();
   
   return initPromise;
@@ -441,39 +438,35 @@ export async function playAudio(padData: PadData): Promise<void> {
   console.log('playAudio called - blob size:', padData.audioBlob.size, 'bytes');
 
   try {
+    // Initialize AudioContext and wait for it to be ready
+    console.log('Initializing AudioContext...');
     const context = await initializeAudioContext();
-    console.log('AudioContext state:', context.state);
+    console.log('AudioContext initialized. Current state:', context.state);
     
-    // CRITICAL FOR MOBILE: Resume must be called synchronously from user interaction
-    // Try to resume immediately (this is safe even if already running)
-    if (context.state === 'suspended') {
-      console.log('AudioContext is suspended, attempting immediate resume...');
-      const resumePromise = context.resume();
-      console.log('Resume promise created, waiting...');
-      await resumePromise;
-      console.log('AudioContext state after immediate resume:', context.state);
-    }
-    
-    // Additional attempts if still suspended
-    let attempts = 0;
-    while (context.state === 'suspended' && attempts < 3) {
-      console.log(`Additional resume attempt ${attempts + 1}...`);
-      await context.resume();
-      console.log('AudioContext state:', context.state);
-      attempts++;
+    // Verify context is running
+    if (context.state !== 'running') {
+      console.warn('AudioContext not running after initialization, state:', context.state);
       
-      if (context.state === 'suspended' && attempts < 3) {
-        await new Promise(resolve => setTimeout(resolve, 50));
+      // Try one more resume attempt
+      if (context.state === 'suspended') {
+        console.log('Attempting final resume...');
+        try {
+          await context.resume();
+          console.log('AudioContext state after final resume:', context.state);
+        } catch (error) {
+          console.error('Failed to resume AudioContext:', error);
+          throw new Error(`AudioContext failed to resume: ${error}`);
+        }
       }
     }
     
-    // Log final state
-    console.log('Final AudioContext state before playback:', context.state);
-    
+    // Final state check
     if (context.state !== 'running') {
-      console.error('AudioContext failed to enter running state. Current state:', context.state);
+      console.error('AudioContext is not running. Current state:', context.state);
       throw new Error(`AudioContext is ${context.state}, cannot play audio`);
     }
+    
+    console.log('AudioContext ready for playback. State:', context.state);
     
     // Convert blob to array buffer
     const arrayBuffer = await blobToArrayBuffer(padData.audioBlob);
