@@ -140,14 +140,6 @@ export default function Pad({
               {padState === 'playing' && (
                 <div className="text-white text-2xl font-bold">▶</div>
               )}
-              {padState === 'has-audio' && !isRecording && !isPlaying && (
-                <div className="text-white text-sm font-semibold opacity-75">
-                  {padData.effect !== 'none' && (
-                    <span className="block">{padData.effect === 'smurf' ? '🎵' : '👹'}</span>
-                  )}
-                  {padData.reverse && <span className="block">⏪</span>}
-                </div>
-              )}
               {padState === 'empty' && mode === 'record' && (
                 <div className="text-center">
                   <div className="text-gray-400 text-xs font-medium mb-1">Tom</div>
@@ -158,6 +150,51 @@ export default function Pad({
                 <div className="text-gray-400 text-sm font-medium">Tom</div>
               )}
             </div>
+
+            {/* Settings indicators - same layout as back side */}
+            {padState !== 'recording' && padState !== 'playing' && (
+              <div className="absolute inset-0 grid grid-cols-2 gap-0 pointer-events-none">
+                {/* Upper left: Reverse */}
+                <div className={`
+                  flex items-center justify-center border-r border-b border-black/20
+                  ${padData.reverse ? 'bg-black/30' : 'bg-transparent'}
+                `}>
+                  {padData.reverse && (
+                    <RotateCcw size={24} className="text-gray-900" strokeWidth={2.5} />
+                  )}
+                </div>
+                
+                {/* Upper right: Forward */}
+                <div className={`
+                  flex items-center justify-center border-b border-black/20
+                  ${!padData.reverse ? 'bg-black/30' : 'bg-transparent'}
+                `}>
+                  {!padData.reverse && (
+                    <Play size={24} className="text-gray-900" strokeWidth={2.5} />
+                  )}
+                </div>
+                
+                {/* Lower left: Troll */}
+                <div className={`
+                  flex items-center justify-center border-r border-black/20
+                  ${padData.effect === 'troll' ? 'bg-black/30' : 'bg-transparent'}
+                `}>
+                  {padData.effect === 'troll' && (
+                    <span className="text-3xl">👹</span>
+                  )}
+                </div>
+                
+                {/* Lower right: Smurfe */}
+                <div className={`
+                  flex items-center justify-center
+                  ${padData.effect === 'smurf' ? 'bg-black/30' : 'bg-transparent'}
+                `}>
+                  {padData.effect === 'smurf' && (
+                    <span className="text-3xl">👶</span>
+                  )}
+                </div>
+              </div>
+            )}
           </button>
         </div>
 
