@@ -336,8 +336,8 @@ export async function playAudio(padData: PadData): Promise<void> {
 
   console.log('🎵 playAudio called - blob size:', padData.audioBlob.size, 'bytes');
 
-  // If reverb is enabled, use Web Audio API directly for real-time reverb tail
-  if (padData.reverb) {
+  // If troll effect is enabled, use Web Audio API directly for real-time reverb tail
+  if (padData.effect === 'troll') {
     return playAudioWithReverb(padData);
   }
 

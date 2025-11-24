@@ -2,7 +2,7 @@
 
 import { PadData } from '@/types';
 import { useState, useEffect, useRef } from 'react';
-import { RotateCcw, Play, Waves } from 'lucide-react';
+import { RotateCcw, Play } from 'lucide-react';
 
 interface PadProps {
   padData: PadData;
@@ -198,11 +198,6 @@ export default function Pad({
     onSaveEdit(padData.id, { effect: newEffect });
   };
 
-  const handleReverbToggle = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onSaveEdit(padData.id, { reverb: !padData.reverb });
-  };
 
   const hasAudio = !!padData.audioBlob || !!padData.audioUrl;
   const padState = isRecording ? 'recording' : isPlaying ? 'playing' : hasAudio ? 'has-audio' : 'empty';
@@ -264,23 +259,6 @@ export default function Pad({
             ) : (
               <Play size={20} className="text-white" strokeWidth={2.5} />
             )}
-          </button>
-
-          {/* Reverb toggle button - Bottom left */}
-          <button
-            className={`absolute bottom-2 left-2 w-10 h-10 rounded-full z-20 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center ${
-              padData.reverb 
-                ? 'bg-purple-500/80 hover:bg-purple-600/80' 
-                : 'bg-black/20 hover:bg-black/30'
-            }`}
-            onClick={handleReverbToggle}
-            onTouchEnd={handleReverbToggle}
-          >
-            <Waves 
-              size={18} 
-              className={padData.reverb ? 'text-white' : 'text-white/60'} 
-              strokeWidth={padData.reverb ? 2.5 : 2}
-            />
           </button>
 
           {/* Effect toggle button - Bottom right */}
