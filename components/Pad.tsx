@@ -221,9 +221,22 @@ export default function Pad({
 
           {/* Direction toggle button - Middle right */}
           <button
-            className="absolute top-1/2 -translate-y-1/2 right-2 w-10 h-10 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
-            onClick={handleDirectionToggle}
-            onTouchEnd={handleDirectionToggle}
+            className="absolute top-1/2 -translate-y-1/2 right-2 w-10 h-10 rounded-full z-30 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDirectionToggle(e);
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDirectionToggle(e);
+            }}
+            onTouchStart={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleDirectionToggle(e);
+            }}
           >
             {padData.reverse ? (
               <RotateCcw size={20} className="text-white" strokeWidth={2.5} />
@@ -234,9 +247,22 @@ export default function Pad({
 
           {/* Effect toggle button - Bottom right */}
           <button
-            className="absolute bottom-2 right-2 w-10 h-10 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
-            onMouseDown={handleEffectCycle}
-            onTouchStart={handleEffectCycle}
+            className="absolute bottom-2 right-2 w-10 h-10 rounded-full z-30 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleEffectCycle(e);
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleEffectCycle(e);
+            }}
+            onTouchStart={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleEffectCycle(e);
+            }}
           >
             {padData.effect === 'none' && (
               <span className="text-white text-sm font-bold">—</span>
