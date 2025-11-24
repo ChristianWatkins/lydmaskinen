@@ -157,6 +157,92 @@ export async function stopRecording(): Promise<Blob | null> {
 }
 
 /**
+ * Reverses audio blob using Web Audio API
+ */
+async function reverseAudioBlob(blob: Blob): Promise<Blob> {
+  // Create temporary AudioContext for processing
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  
+  try {
+    // Convert blob to ArrayBuffer
+    const arrayBuffer = await blob.arrayBuffer();
+    
+    // Decode audio data
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    
+    // Create reversed buffer
+    const reversedBuffer = audioContext.createBuffer(
+      audioBuffer.numberOfChannels,
+      audioBuffer.length,
+      audioBuffer.sampleRate
+    );
+    
+    // Reverse each channel
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+      const channelData = audioBuffer.getChannelData(channel);
+      const reversedData = reversedBuffer.getChannelData(channel);
+      for (let i = 0; i < channelData.length; i++) {
+        reversedData[i] = channelData[channelData.length - 1 - i];
+      }
+    }
+    
+    // Convert back to WAV blob
+    const wavBlob = audioBufferToWavBlob(reversedBuffer);
+    
+    // Close the temporary context
+    await audioContext.close();
+    
+    return wavBlob;
+  } catch (error) {
+    console.error('Error reversing audio:', error);
+    await audioContext.close();
+    throw error;
+  }
+}
+
+/**
+ * Converts AudioBuffer to WAV Blob
+ */
+function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
+  const length = buffer.length * buffer.numberOfChannels * 2;
+  const arrayBuffer = new ArrayBuffer(44 + length);
+  const view = new DataView(arrayBuffer);
+  
+  // Write WAV header
+  const writeString = (offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+  
+  let offset = 0;
+  writeString(offset, 'RIFF'); offset += 4;
+  view.setUint32(offset, 36 + length, true); offset += 4;
+  writeString(offset, 'WAVE'); offset += 4;
+  writeString(offset, 'fmt '); offset += 4;
+  view.setUint32(offset, 16, true); offset += 4;
+  view.setUint16(offset, 1, true); offset += 2;
+  view.setUint16(offset, buffer.numberOfChannels, true); offset += 2;
+  view.setUint32(offset, buffer.sampleRate, true); offset += 4;
+  view.setUint32(offset, buffer.sampleRate * buffer.numberOfChannels * 2, true); offset += 4;
+  view.setUint16(offset, buffer.numberOfChannels * 2, true); offset += 2;
+  view.setUint16(offset, 16, true); offset += 2;
+  writeString(offset, 'data'); offset += 4;
+  view.setUint32(offset, length, true); offset += 4;
+  
+  // Write audio samples
+  for (let i = 0; i < buffer.length; i++) {
+    for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+      const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+      offset += 2;
+    }
+  }
+  
+  return new Blob([arrayBuffer], { type: 'audio/wav' });
+}
+
+/**
  * Plays audio using Howler.js - handles all the mobile quirks automatically!
  */
 export async function playAudio(padData: PadData): Promise<void> {
@@ -167,10 +253,17 @@ export async function playAudio(padData: PadData): Promise<void> {
 
   console.log('🎵 playAudio called - blob size:', padData.audioBlob.size, 'bytes');
 
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
       // TypeScript now knows audioBlob is defined
-      const audioBlob = padData.audioBlob!;
+      let audioBlob = padData.audioBlob!;
+      
+      // Apply reverse if needed
+      if (padData.reverse) {
+        console.log('🔄 Reversing audio...');
+        audioBlob = await reverseAudioBlob(audioBlob);
+        console.log('✓ Audio reversed');
+      }
       
       // Create URL for the blob
       const audioUrl = URL.createObjectURL(audioBlob);
@@ -225,12 +318,6 @@ export async function playAudio(padData: PadData): Promise<void> {
 
       // Store the sound instance
       padSounds.set(padData.id, sound);
-
-      // Apply reverse if needed (Howler doesn't support reverse directly)
-      // We'll need to handle this differently or skip for now
-      if (padData.reverse) {
-        console.warn('⚠️ Reverse effect not yet implemented with Howler.js');
-      }
 
       // Play the sound
       sound.play();
