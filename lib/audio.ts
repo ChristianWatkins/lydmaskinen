@@ -469,7 +469,7 @@ async function playAudioWithReverb(padData: PadData): Promise<void> {
     const convolver = audioContext.createConvolver();
     const reverbTime = 2.0; // seconds (Pizzicato time parameter)
     const reverbDecay = 0.4; // Pizzicato decay parameter (0-10, default 0.01) - lower = faster fade
-    const reverbMix = 0.5; // Pizzicato mix parameter (0-1, wet signal)
+    const reverbMix = 0.42; // Pizzicato mix parameter (0-1, wet signal)
     
     const impulseLength = Math.floor(audioBuffer.sampleRate * reverbTime);
     const impulse = audioContext.createBuffer(2, impulseLength, audioBuffer.sampleRate);
