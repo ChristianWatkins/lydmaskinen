@@ -127,7 +127,7 @@ export default function Pad({
             touch-none select-none
           `}
         >
-          {/* Record button - Red dot in top right */}
+          {/* Record button - Top right */}
           <button
             className={`
               absolute top-2 right-2 w-8 h-8 rounded-full z-20
@@ -145,9 +145,9 @@ export default function Pad({
             </div>
           </button>
 
-          {/* Direction toggle button - Below record button */}
+          {/* Direction toggle button - Middle right */}
           <button
-            className="absolute top-12 right-2 w-8 h-8 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
+            className="absolute top-1/2 -translate-y-1/2 right-2 w-8 h-8 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
             onClick={handleDirectionToggle}
             onTouchEnd={handleDirectionToggle}
           >
@@ -158,9 +158,9 @@ export default function Pad({
             )}
           </button>
 
-          {/* Effect toggle button - Below direction button */}
+          {/* Effect toggle button - Bottom right */}
           <button
-            className="absolute top-[88px] right-2 w-8 h-8 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
+            className="absolute bottom-2 right-2 w-8 h-8 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
             onClick={handleEffectCycle}
             onTouchEnd={handleEffectCycle}
           >
