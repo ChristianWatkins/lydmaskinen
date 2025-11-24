@@ -266,9 +266,9 @@ export default function Pad({
             )}
           </button>
 
-          {/* Reverb toggle button - Between direction and effect */}
+          {/* Reverb toggle button - Bottom left */}
           <button
-            className="absolute top-[calc(50%+3rem)] right-2 w-10 h-10 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
+            className="absolute bottom-2 left-2 w-10 h-10 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
             onClick={handleReverbToggle}
             onTouchEnd={handleReverbToggle}
           >
