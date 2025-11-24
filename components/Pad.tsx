@@ -3,6 +3,7 @@
 import { PadData, Mode } from '@/types';
 import { useState, useEffect } from 'react';
 import { RotateCcw, Play } from 'lucide-react';
+import { initializeAudioContext } from '@/lib/audio';
 
 interface PadProps {
   padData: PadData;
@@ -51,6 +52,13 @@ export default function Pad({
       setIsRecordingStarted(started);
       console.log('Recording started:', started);
     } else if (mode === 'play') {
+      // CRITICAL FOR MOBILE: Initialize AudioContext synchronously from user event
+      // This ensures AudioContext is created and resume() is triggered in the same callstack
+      console.log('Initializing AudioContext from user interaction...');
+      initializeAudioContext().catch(err => {
+        console.error('Failed to initialize AudioContext in handleStart:', err);
+      });
+      
       // Play audio - only in play mode
       console.log('Attempting to play audio for pad:', padData.id, 'hasAudio:', !!padData.audioBlob);
       onPlay(padData.id);

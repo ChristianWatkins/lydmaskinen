@@ -102,17 +102,10 @@ export default function Home() {
     
     console.log('Playing pad with audio blob size:', pad.audioBlob.size);
 
-    // Initialize audio context on first interaction
-    try {
-      await initializeAudioContext();
-      console.log('AudioContext initialized for playback');
-    } catch (error) {
-      console.error('Failed to initialize AudioContext:', error);
-      return;
-    }
-
     setPlayingPadId(padId);
     try {
+      // playAudio will handle initialization internally
+      // This ensures resume() is called in the right context
       await playAudio(pad);
       console.log('Playback completed successfully');
     } catch (error) {
