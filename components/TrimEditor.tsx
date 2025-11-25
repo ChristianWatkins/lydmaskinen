@@ -26,6 +26,9 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
   const startMarkerRef = useRef<HTMLDivElement>(null);
   const endMarkerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const hasInitializedRef = useRef(false);
+  const savedStartTimeRef = useRef<number>(startTime);
+  const savedEndTimeRef = useRef<number>(endTime);
 
   useEffect(() => {
     if (!waveformRef.current || !currentAudioBlob) return;
@@ -59,8 +62,16 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
     wavesurfer.on('ready', () => {
       const dur = wavesurfer.getDuration();
       setDuration(dur);
-      if (!padData.endTime || endTime === 0) {
-        setEndTime(dur);
+      // Only set endTime on first initialization, not when recreating due to zoom
+      if (!hasInitializedRef.current) {
+        hasInitializedRef.current = true;
+        if (!padData.endTime || endTime === 0) {
+          setEndTime(dur);
+        }
+      } else {
+        // Restore saved startTime and endTime when recreating due to zoom
+        setStartTime(savedStartTimeRef.current);
+        setEndTime(savedEndTimeRef.current);
       }
       // Set initial volume
       const volumeValue = volume / 10;
@@ -78,6 +89,12 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
       URL.revokeObjectURL(audioUrl);
     };
   }, [currentAudioBlob, zoom]);
+
+  // Update refs when startTime/endTime change (but don't recreate WaveSurfer)
+  useEffect(() => {
+    savedStartTimeRef.current = startTime;
+    savedEndTimeRef.current = endTime;
+  }, [startTime, endTime]);
 
   // Update volume when it changes
   useEffect(() => {
@@ -210,6 +227,22 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
     setZoom(1);
   };
 
+  const handleZoomToSelection = () => {
+    if (!containerRef.current || duration === 0 || endTime <= startTime) return;
+    
+    // Calculate zoom level needed to fit the selection (startTime to endTime)
+    const containerWidth = containerRef.current.offsetWidth;
+    const selectionDuration = endTime - startTime;
+    
+    // We want the selection to take up about 80% of the container width
+    const targetWidth = containerWidth * 0.8;
+    const pixelsPerSecond = targetWidth / selectionDuration;
+    
+    // Base minPxPerSec is 10, so zoom factor is pixelsPerSecond / 10
+    const calculatedZoom = Math.max(0.5, Math.min(10, pixelsPerSecond / 10));
+    setZoom(calculatedZoom);
+  };
+
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseInt(e.target.value);
     setVolume(newVolume);
@@ -307,39 +340,47 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
 
             {/* Zoom controls */}
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-sm font-semibold">Zoom:</span>
+              <span className="text-sm font-semibold text-gray-700">Zoom:</span>
               <button
                 onClick={handleZoomOut}
                 disabled={duration === 0}
-                className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-blue-300"
                 title="Zoom out"
               >
                 <ZoomOut size={16} />
               </button>
-              <span className="text-sm min-w-[3rem] text-center">{zoom.toFixed(1)}x</span>
+              <span className="text-sm min-w-[3rem] text-center text-gray-700 font-medium">{zoom.toFixed(1)}x</span>
               <button
                 onClick={handleZoomIn}
                 disabled={duration === 0}
-                className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-blue-300"
                 title="Zoom in"
               >
                 <ZoomIn size={16} />
               </button>
               <button
-                onClick={handleZoomReset}
-                disabled={duration === 0 || zoom === 1}
-                className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors ml-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Reset zoom"
+                onClick={handleZoomToSelection}
+                disabled={duration === 0 || endTime <= startTime}
+                className="p-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg transition-colors ml-2 disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-300"
+                title="Zoom to selection (fit start/end markers)"
               >
                 <Maximize2 size={16} />
+              </button>
+              <button
+                onClick={handleZoomReset}
+                disabled={duration === 0 || zoom === 1}
+                className="p-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-gray-400"
+                title="Reset zoom"
+              >
+                1x
               </button>
             </div>
 
             {/* Volume control */}
             <div className="flex items-center gap-4 mb-4">
               <div className="flex items-center gap-2 min-w-[6rem]">
-                <Volume2 size={16} />
-                <span className="text-sm font-semibold">Volume:</span>
+                <Volume2 size={16} className="text-gray-700" />
+                <span className="text-sm font-semibold text-gray-700">Volume:</span>
               </div>
               <input
                 type="range"
@@ -347,25 +388,28 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
                 max="10"
                 value={volume}
                 onChange={handleVolumeChange}
-                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                className="flex-1 h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                style={{
+                  background: `linear-gradient(to right, #4f46e5 0%, #4f46e5 ${(volume / 10) * 100}%, #d1d5db ${(volume / 10) * 100}%, #d1d5db 100%)`
+                }}
               />
-              <span className="text-sm font-semibold min-w-[2rem]">{volume}</span>
+              <span className="text-sm font-semibold min-w-[2rem] text-gray-700">{volume}</span>
             </div>
 
             {/* Time display */}
-            <div className="flex items-center justify-between mb-4 text-sm">
+            <div className="flex items-center justify-between mb-4 text-sm text-gray-800">
               <div>
-                <span className="font-semibold">Start:</span> {startTime.toFixed(2)}s
+                <span className="font-semibold text-gray-900">Start:</span> <span className="text-gray-700">{startTime.toFixed(2)}s</span>
               </div>
               <div>
-                <span className="font-semibold">End:</span> {endTime.toFixed(2)}s
+                <span className="font-semibold text-gray-900">End:</span> <span className="text-gray-700">{endTime.toFixed(2)}s</span>
               </div>
               <div>
-                <span className="font-semibold">Duration:</span> {(endTime - startTime).toFixed(2)}s
+                <span className="font-semibold text-gray-900">Duration:</span> <span className="text-gray-700">{(endTime - startTime).toFixed(2)}s</span>
               </div>
               {duration > 0 && (
                 <div>
-                  <span className="font-semibold">Total:</span> {duration.toFixed(2)}s
+                  <span className="font-semibold text-gray-900">Total:</span> <span className="text-gray-700">{duration.toFixed(2)}s</span>
                 </div>
               )}
             </div>
