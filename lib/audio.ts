@@ -296,6 +296,70 @@ async function trimAudioBlob(blob: Blob, startTime?: number, endTime?: number): 
 }
 
 /**
+ * Normalizes audio blob destructively (permanently adjusts volume to maximum)
+ */
+export async function normalizeAudioBlob(blob: Blob): Promise<Blob> {
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  
+  try {
+    // Convert blob to ArrayBuffer
+    const arrayBuffer = await blob.arrayBuffer();
+    
+    // Decode audio data
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    
+    // Find the maximum absolute value across all channels
+    let maxValue = 0;
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+      const channelData = audioBuffer.getChannelData(channel);
+      for (let i = 0; i < channelData.length; i++) {
+        const absValue = Math.abs(channelData[i]);
+        if (absValue > maxValue) {
+          maxValue = absValue;
+        }
+      }
+    }
+    
+    // If already normalized (maxValue is close to 1.0), return original
+    if (maxValue >= 0.99) {
+      await audioContext.close();
+      return blob;
+    }
+    
+    // Calculate normalization factor (scale to 0.99 to avoid clipping)
+    const normalizeFactor = maxValue > 0 ? 0.99 / maxValue : 1.0;
+    
+    // Create normalized buffer
+    const normalizedBuffer = audioContext.createBuffer(
+      audioBuffer.numberOfChannels,
+      audioBuffer.length,
+      audioBuffer.sampleRate
+    );
+    
+    // Apply normalization
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+      const sourceData = audioBuffer.getChannelData(channel);
+      const normalizedData = normalizedBuffer.getChannelData(channel);
+      for (let i = 0; i < sourceData.length; i++) {
+        normalizedData[i] = sourceData[i] * normalizeFactor;
+      }
+    }
+    
+    // Convert back to WAV blob
+    const wavBlob = audioBufferToWavBlob(normalizedBuffer);
+    
+    // Close the temporary context
+    await audioContext.close();
+    
+    return wavBlob;
+  } catch (error) {
+    console.error('Error normalizing audio:', error);
+    await audioContext.close();
+    throw error;
+  }
+}
+
+/**
  * Reverses audio blob using Web Audio API
  */
 async function reverseAudioBlob(blob: Blob): Promise<Blob> {

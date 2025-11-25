@@ -3,7 +3,8 @@
 import { PadData } from '@/types';
 import { useEffect, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
-import { X, Play, Save } from 'lucide-react';
+import { X, Play, Save, ZoomIn, ZoomOut, Volume2, Maximize2 } from 'lucide-react';
+import { normalizeAudioBlob } from '@/lib/audio';
 
 interface TrimEditorProps {
   padData: PadData;
@@ -18,12 +19,16 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
   const [endTime, setEndTime] = useState<number>(padData.endTime ?? 0);
   const [duration, setDuration] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [zoom, setZoom] = useState<number>(1); // 1 = normal, higher = more zoom
+  const [volume, setVolume] = useState<number>(padData.volume !== undefined ? padData.volume : 10);
+  const [isNormalizing, setIsNormalizing] = useState(false);
+  const [currentAudioBlob, setCurrentAudioBlob] = useState<Blob | null>(padData.audioBlob || null);
   const startMarkerRef = useRef<HTMLDivElement>(null);
   const endMarkerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!waveformRef.current || !padData.audioBlob) return;
+    if (!waveformRef.current || !currentAudioBlob) return;
 
     // Create WaveSurfer instance
     const wavesurfer = WaveSurfer.create({
@@ -36,21 +41,25 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
       height: 100,
       normalize: true,
       backend: 'WebAudio',
+      minPxPerSec: 10 * zoom, // Zoom control: higher = more zoom
     });
 
     wavesurferRef.current = wavesurfer;
 
     // Load audio
-    const audioUrl = padData.audioUrl || URL.createObjectURL(padData.audioBlob);
+    const audioUrl = URL.createObjectURL(currentAudioBlob);
     wavesurfer.load(audioUrl);
 
     // Get duration when ready
     wavesurfer.on('ready', () => {
       const dur = wavesurfer.getDuration();
       setDuration(dur);
-      if (!padData.endTime) {
+      if (!padData.endTime || endTime === 0) {
         setEndTime(dur);
       }
+      // Set initial volume
+      const volumeValue = volume / 10;
+      wavesurfer.setVolume(volumeValue);
     });
 
     // Handle playback state
@@ -61,11 +70,17 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
     // Cleanup
     return () => {
       wavesurfer.destroy();
-      if (!padData.audioUrl && audioUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(audioUrl);
-      }
+      URL.revokeObjectURL(audioUrl);
     };
-  }, [padData.audioBlob, padData.audioUrl]);
+  }, [currentAudioBlob, zoom]);
+
+  // Update volume when it changes
+  useEffect(() => {
+    if (wavesurferRef.current) {
+      const volumeValue = volume / 10;
+      wavesurferRef.current.setVolume(volumeValue);
+    }
+  }, [volume]);
 
   // Update markers position based on startTime and endTime
   useEffect(() => {
@@ -157,6 +172,10 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
   const handlePreview = () => {
     if (!wavesurferRef.current || duration === 0) return;
     
+    // Set volume (0-1 range)
+    const volumeValue = volume / 10;
+    wavesurferRef.current.setVolume(volumeValue);
+    
     const startRatio = startTime / duration;
     wavesurferRef.current.seekTo(startRatio);
     wavesurferRef.current.play();
@@ -174,10 +193,49 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
     }, 50);
   };
 
+  const handleZoomIn = () => {
+    setZoom(prev => Math.min(prev + 0.5, 10)); // Max zoom 10x
+  };
+
+  const handleZoomOut = () => {
+    setZoom(prev => Math.max(prev - 0.5, 0.5)); // Min zoom 0.5x
+  };
+
+  const handleZoomReset = () => {
+    setZoom(1);
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseInt(e.target.value);
+    setVolume(newVolume);
+  };
+
+  const handleNormalize = async () => {
+    if (!currentAudioBlob || isNormalizing) return;
+    
+    setIsNormalizing(true);
+    try {
+      const normalizedBlob = await normalizeAudioBlob(currentAudioBlob);
+      setCurrentAudioBlob(normalizedBlob);
+      // Update the audio URL for preview
+      if (wavesurferRef.current) {
+        const audioUrl = URL.createObjectURL(normalizedBlob);
+        wavesurferRef.current.load(audioUrl);
+      }
+    } catch (error) {
+      console.error('Error normalizing audio:', error);
+      alert('Failed to normalize audio');
+    } finally {
+      setIsNormalizing(false);
+    }
+  };
+
   const handleSave = () => {
     onSave({
       startTime: startTime > 0 ? startTime : undefined,
       endTime: endTime < duration ? endTime : undefined,
+      volume: volume,
+      audioBlob: currentAudioBlob || undefined,
     });
     onClose();
   };
@@ -195,7 +253,7 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
           </button>
         </div>
 
-        {padData.audioBlob ? (
+        {currentAudioBlob ? (
           <>
             {/* Waveform container */}
             <div 
@@ -242,6 +300,50 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
               )}
             </div>
 
+            {/* Zoom controls */}
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-sm font-semibold">Zoom:</span>
+              <button
+                onClick={handleZoomOut}
+                className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors"
+                title="Zoom out"
+              >
+                <ZoomOut size={16} />
+              </button>
+              <span className="text-sm min-w-[3rem] text-center">{zoom.toFixed(1)}x</span>
+              <button
+                onClick={handleZoomIn}
+                className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors"
+                title="Zoom in"
+              >
+                <ZoomIn size={16} />
+              </button>
+              <button
+                onClick={handleZoomReset}
+                className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors ml-2"
+                title="Reset zoom"
+              >
+                <Maximize2 size={16} />
+              </button>
+            </div>
+
+            {/* Volume control */}
+            <div className="flex items-center gap-4 mb-4">
+              <div className="flex items-center gap-2 min-w-[6rem]">
+                <Volume2 size={16} />
+                <span className="text-sm font-semibold">Volume:</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="10"
+                value={volume}
+                onChange={handleVolumeChange}
+                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+              />
+              <span className="text-sm font-semibold min-w-[2rem]">{volume}</span>
+            </div>
+
             {/* Time display */}
             <div className="flex items-center justify-between mb-4 text-sm">
               <div>
@@ -261,7 +363,7 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
             </div>
 
             {/* Controls */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={handlePreview}
                 disabled={isPlaying}
@@ -269,6 +371,15 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
               >
                 <Play size={16} />
                 Preview
+              </button>
+              <button
+                onClick={handleNormalize}
+                disabled={isNormalizing}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                title="Normalize audio (permanently adjust volume to maximum)"
+              >
+                <Maximize2 size={16} />
+                {isNormalizing ? 'Normalizing...' : 'Normalize'}
               </button>
               <button
                 onClick={handleSave}
