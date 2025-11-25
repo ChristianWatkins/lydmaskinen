@@ -3,7 +3,7 @@
 import { PadData } from '@/types';
 import { useEffect, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
-import { X, Play, Save, ZoomIn, ZoomOut, Volume2, Maximize2 } from 'lucide-react';
+import { X, Play, Save, ZoomIn, ZoomOut, Volume2, Maximize2, RotateCcw } from 'lucide-react';
 import { normalizeAudioBlob } from '@/lib/audio';
 
 interface TrimEditorProps {
@@ -536,10 +536,10 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
               <button
                 onClick={handleZoomReset}
                 disabled={duration === 0 || minPxPerSec === 100}
-                className="p-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-gray-400"
+                className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-blue-300"
                 title="Reset zoom"
               >
-                1x
+                <RotateCcw size={16} />
               </button>
             </div>
 

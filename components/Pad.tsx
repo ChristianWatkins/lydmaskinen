@@ -2,7 +2,7 @@
 
 import { PadData } from '@/types';
 import { useState, useEffect, useRef } from 'react';
-import { Undo2, ArrowRight, Scissors } from 'lucide-react';
+import { Undo2, ArrowRight, Pencil } from 'lucide-react';
 
 interface PadProps {
   padData: PadData;
@@ -228,7 +228,7 @@ export default function Pad({
                 onEditorOpen(padData.id);
               }}
             >
-              <Scissors size={18} className="text-white" strokeWidth={2.5} />
+              <Pencil size={18} className="text-white" strokeWidth={2.5} />
             </button>
           )}
 
