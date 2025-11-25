@@ -9,6 +9,8 @@ export interface PadData {
   reverbTime?: number; // seconds (Pizzicato time parameter)
   reverbDecay?: number; // Pizzicato decay parameter (0-10)
   reverbMix?: number; // Pizzicato mix parameter (0-1, wet signal)
+  startTime?: number; // Trim start point in seconds (default: 0)
+  endTime?: number; // Trim end point in seconds (default: audio duration)
 }
 
 export interface SequenceEvent {

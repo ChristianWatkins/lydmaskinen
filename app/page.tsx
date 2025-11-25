@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { PadData, Sequence } from '@/types';
 import Pad from '@/components/Pad';
+import TrimEditor from '@/components/TrimEditor';
 import { playAudio, saveToStorage, loadFromStorage, blobToBase64, base64ToBlob, playSequence, renderSequenceToAudio } from '@/lib/audio';
 import { Save, FolderOpen, RotateCcw, Play, Square, Circle } from 'lucide-react';
 
@@ -20,6 +21,7 @@ export default function Home() {
   const [recordingPadId, setRecordingPadId] = useState<string | null>(null);
   const [playingPadId, setPlayingPadId] = useState<string | null>(null);
   const [showLoadModal, setShowLoadModal] = useState(false);
+  const [editingPadId, setEditingPadId] = useState<string | null>(null);
   
   // Sequence recording state
   const [isRecordingSequence, setIsRecordingSequence] = useState(false);
@@ -173,6 +175,8 @@ export default function Home() {
           reverbTime: pad.reverbTime,
           reverbDecay: pad.reverbDecay,
           reverbMix: pad.reverbMix,
+          startTime: pad.startTime,
+          endTime: pad.endTime,
         };
       })
     );
@@ -234,6 +238,8 @@ export default function Home() {
           reverbTime: savedPad.reverbTime,
           reverbDecay: savedPad.reverbDecay,
           reverbMix: savedPad.reverbMix,
+          startTime: savedPad.startTime,
+          endTime: savedPad.endTime,
         };
       });
       
@@ -350,6 +356,7 @@ export default function Home() {
               onRecord={handleRecord}
               onPlay={handlePlay}
               onSaveEdit={handleSaveEdit}
+              onEditorOpen={setEditingPadId}
               isRecording={recordingPadId === pad.id}
               isPlaying={playingPadId === pad.id}
             />
@@ -505,6 +512,20 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* Trim Editor Modal */}
+        {editingPadId && (() => {
+          const pad = pads.find(p => p.id === editingPadId);
+          return pad ? (
+            <TrimEditor
+              padData={pad}
+              onClose={() => setEditingPadId(null)}
+              onSave={(updates) => {
+                handleSaveEdit(editingPadId, updates);
+              }}
+            />
+          ) : null;
+        })()}
 
       </div>
 

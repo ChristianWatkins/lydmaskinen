@@ -230,6 +230,72 @@ async function applyReverbToBlob(blob: Blob): Promise<Blob> {
 }
 
 /**
+ * Trims audio blob using Web Audio API based on startTime and endTime
+ */
+async function trimAudioBlob(blob: Blob, startTime?: number, endTime?: number): Promise<Blob> {
+  // If no trim points specified, return original blob
+  if (startTime === undefined && endTime === undefined) {
+    return blob;
+  }
+
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  
+  try {
+    // Convert blob to ArrayBuffer
+    const arrayBuffer = await blob.arrayBuffer();
+    
+    // Decode audio data
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    
+    const duration = audioBuffer.duration;
+    const sampleRate = audioBuffer.sampleRate;
+    
+    // Calculate trim points
+    const trimStart = startTime !== undefined ? Math.max(0, Math.min(startTime, duration)) : 0;
+    const trimEnd = endTime !== undefined ? Math.max(trimStart, Math.min(endTime, duration)) : duration;
+    
+    // If no trimming needed, return original blob
+    if (trimStart === 0 && trimEnd >= duration) {
+      await audioContext.close();
+      return blob;
+    }
+    
+    // Calculate sample offsets
+    const startSample = Math.floor(trimStart * sampleRate);
+    const endSample = Math.floor(trimEnd * sampleRate);
+    const trimmedLength = endSample - startSample;
+    
+    // Create trimmed buffer
+    const trimmedBuffer = audioContext.createBuffer(
+      audioBuffer.numberOfChannels,
+      trimmedLength,
+      sampleRate
+    );
+    
+    // Copy trimmed portion
+    for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+      const sourceData = audioBuffer.getChannelData(channel);
+      const trimmedData = trimmedBuffer.getChannelData(channel);
+      for (let i = 0; i < trimmedLength; i++) {
+        trimmedData[i] = sourceData[startSample + i];
+      }
+    }
+    
+    // Convert back to WAV blob
+    const wavBlob = audioBufferToWavBlob(trimmedBuffer);
+    
+    // Close the temporary context
+    await audioContext.close();
+    
+    return wavBlob;
+  } catch (error) {
+    console.error('Error trimming audio:', error);
+    await audioContext.close();
+    throw error;
+  }
+}
+
+/**
  * Reverses audio blob using Web Audio API
  */
 async function reverseAudioBlob(blob: Blob): Promise<Blob> {
@@ -348,6 +414,13 @@ export async function playAudio(padData: PadData): Promise<void> {
       // TypeScript now knows audioBlob is defined
       let audioBlob = padData.audioBlob!;
       
+      // Apply trim if needed
+      if (padData.startTime !== undefined || padData.endTime !== undefined) {
+        console.log('✂️ Trimming audio...', { startTime: padData.startTime, endTime: padData.endTime });
+        audioBlob = await trimAudioBlob(audioBlob, padData.startTime, padData.endTime);
+        console.log('✓ Audio trimmed');
+      }
+      
       // Apply reverse if needed
       if (padData.reverse) {
         console.log('🔄 Reversing audio...');
@@ -436,6 +509,13 @@ async function playAudioWithReverb(padData: PadData): Promise<void> {
 
   try {
     let audioBlob = padData.audioBlob!;
+
+    // Apply trim if needed
+    if (padData.startTime !== undefined || padData.endTime !== undefined) {
+      console.log('✂️ Trimming audio...', { startTime: padData.startTime, endTime: padData.endTime });
+      audioBlob = await trimAudioBlob(audioBlob, padData.startTime, padData.endTime);
+      console.log('✓ Audio trimmed');
+    }
 
     // Apply reverse if needed
     if (padData.reverse) {
@@ -564,6 +644,11 @@ export async function playSequence(sequence: Sequence, pads: PadData[]): Promise
 
       if (!bufferMap.has(event.padId)) {
         let audioBlob = pad.audioBlob;
+        
+        // Pre-process trim if needed
+        if (event.padData.startTime !== undefined || event.padData.endTime !== undefined) {
+          audioBlob = await trimAudioBlob(audioBlob, event.padData.startTime, event.padData.endTime);
+        }
         
         // Pre-process reverse if needed
         if (event.padData.reverse) {
@@ -709,6 +794,11 @@ export async function renderSequenceToAudio(sequence: Sequence, pads: PadData[])
 
       if (!bufferMap.has(event.padId)) {
         let audioBlob = pad.audioBlob;
+        
+        // Pre-process trim if needed
+        if (event.padData.startTime !== undefined || event.padData.endTime !== undefined) {
+          audioBlob = await trimAudioBlob(audioBlob, event.padData.startTime, event.padData.endTime);
+        }
         
         // Pre-process reverse if needed
         if (event.padData.reverse) {
@@ -864,6 +954,8 @@ export async function saveToStorage(pads: PadData[]): Promise<void> {
         reverbTime: pad.reverbTime,
         reverbDecay: pad.reverbDecay,
         reverbMix: pad.reverbMix,
+        startTime: pad.startTime,
+        endTime: pad.endTime,
       };
     })
   );
@@ -892,6 +984,8 @@ export function loadFromStorage(): Partial<PadData>[] {
         reverbTime: item.reverbTime,
         reverbDecay: item.reverbDecay,
         reverbMix: item.reverbMix,
+        startTime: item.startTime,
+        endTime: item.endTime,
       };
       
       if (item.audioBase64) {

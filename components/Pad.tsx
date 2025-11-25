@@ -2,7 +2,7 @@
 
 import { PadData } from '@/types';
 import { useState, useEffect, useRef } from 'react';
-import { Undo2, ArrowRight } from 'lucide-react';
+import { Undo2, ArrowRight, Scissors } from 'lucide-react';
 
 interface PadProps {
   padData: PadData;
@@ -10,6 +10,7 @@ interface PadProps {
   onRecord: (padId: string, blob: Blob) => void;
   onPlay: (padId: string) => void;
   onSaveEdit: (padId: string, updates: Partial<PadData>) => void;
+  onEditorOpen?: (padId: string) => void;
   isRecording: boolean;
   isPlaying: boolean;
 }
@@ -20,6 +21,7 @@ export default function Pad({
   onRecord,
   onPlay,
   onSaveEdit,
+  onEditorOpen,
   isRecording,
   isPlaying,
 }: PadProps) {
@@ -277,6 +279,25 @@ export default function Pad({
               <span className="text-xl">👹</span>
             )}
           </button>
+
+          {/* Trim button - Bottom left (only show if audio exists) */}
+          {hasAudio && onEditorOpen && (
+            <button
+              className="absolute bottom-2 left-2 w-10 h-10 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onEditorOpen(padData.id);
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onEditorOpen(padData.id);
+              }}
+            >
+              <Scissors size={18} className="text-white" strokeWidth={2.5} />
+            </button>
+          )}
 
           {/* Main pad area for playback */}
           <button
