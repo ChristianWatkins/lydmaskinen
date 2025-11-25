@@ -2,7 +2,7 @@
 
 import { PadData } from '@/types';
 import { useState, useEffect, useRef } from 'react';
-import { Undo2, ArrowRight, Settings } from 'lucide-react';
+import { Undo2, ArrowRight } from 'lucide-react';
 
 interface PadProps {
   padData: PadData;
@@ -30,13 +30,7 @@ export default function Pad({
   const [currentVolume, setCurrentVolume] = useState<number>(padData.volume !== undefined ? padData.volume : 10);
   const [startVolume, setStartVolume] = useState<number>(padData.volume !== undefined ? padData.volume : 10);
   const [neutralState, setNeutralState] = useState<'from-baby' | 'from-troll'>('from-baby');
-  const [showSettings, setShowSettings] = useState(false);
   const padRef = useRef<HTMLDivElement>(null);
-  
-  // Reverb settings with defaults
-  const reverbTime = padData.reverbTime !== undefined ? padData.reverbTime : 2.0;
-  const reverbDecay = padData.reverbDecay !== undefined ? padData.reverbDecay : 0.4;
-  const reverbMix = padData.reverbMix !== undefined ? padData.reverbMix : 0.42;
 
   // Sync currentVolume with padData.volume
   useEffect(() => {
@@ -51,26 +45,6 @@ export default function Pad({
       setNeutralState('from-troll');
     }
   }, [padData.effect]);
-
-  // Close settings panel when clicking outside
-  useEffect(() => {
-    if (!showSettings) return;
-    
-    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('.settings-panel') && !target.closest('.settings-button')) {
-        setShowSettings(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-    };
-  }, [showSettings]);
 
   const handleStart = async (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
@@ -256,84 +230,6 @@ export default function Pad({
             touch-none select-none
           `}
         >
-          {/* Settings button - Top left */}
-          <button
-            className="settings-button absolute top-2 left-2 w-10 h-10 rounded-full z-20 bg-black/20 hover:bg-black/30 backdrop-blur-sm shadow transition-all active:scale-90 flex items-center justify-center"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setShowSettings(!showSettings);
-            }}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setShowSettings(!showSettings);
-            }}
-          >
-            <Settings size={18} className="text-white" strokeWidth={2} />
-          </button>
-
-          {/* Settings panel */}
-          {showSettings && (
-            <div 
-              className="settings-panel absolute top-12 left-2 z-30 bg-black/90 backdrop-blur-md rounded-lg p-4 shadow-xl min-w-[200px]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="text-white text-xs font-bold mb-3">Reverb Settings (Troll)</div>
-              
-              {/* Reverb Time */}
-              <div className="mb-3">
-                <label className="text-white text-xs mb-1 block">Time: {reverbTime.toFixed(1)}s</label>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="5.0"
-                  step="0.1"
-                  value={reverbTime}
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value);
-                    onSaveEdit(padData.id, { reverbTime: value });
-                  }}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Reverb Decay */}
-              <div className="mb-3">
-                <label className="text-white text-xs mb-1 block">Decay: {reverbDecay.toFixed(2)}</label>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="2.0"
-                  step="0.05"
-                  value={reverbDecay}
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value);
-                    onSaveEdit(padData.id, { reverbDecay: value });
-                  }}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Reverb Mix */}
-              <div className="mb-2">
-                <label className="text-white text-xs mb-1 block">Mix: {(reverbMix * 100).toFixed(0)}%</label>
-                <input
-                  type="range"
-                  min="0.0"
-                  max="1.0"
-                  step="0.01"
-                  value={reverbMix}
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value);
-                    onSaveEdit(padData.id, { reverbMix: value });
-                  }}
-                  className="w-full"
-                />
-              </div>
-            </div>
-          )}
-
           {/* Record button - Top right */}
           <button
             className={`

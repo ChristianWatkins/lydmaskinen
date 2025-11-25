@@ -468,9 +468,9 @@ async function playAudioWithReverb(padData: PadData): Promise<void> {
     // Create reverb using Pizzicato.js algorithm
     const convolver = audioContext.createConvolver();
     // Use pad-specific settings or defaults
-    const reverbTime = padData.reverbTime !== undefined ? padData.reverbTime : 2.0; // seconds (Pizzicato time parameter)
-    const reverbDecay = padData.reverbDecay !== undefined ? padData.reverbDecay : 0.4; // Pizzicato decay parameter (0-10, default 0.01) - lower = faster fade
-    const reverbMix = padData.reverbMix !== undefined ? padData.reverbMix : 0.42; // Pizzicato mix parameter (0-1, wet signal)
+    const reverbTime = padData.reverbTime !== undefined ? padData.reverbTime : 1.7; // seconds (Pizzicato time parameter)
+    const reverbDecay = padData.reverbDecay !== undefined ? padData.reverbDecay : 1.10; // Pizzicato decay parameter (0-10, default 0.01) - lower = faster fade
+    const reverbMix = padData.reverbMix !== undefined ? padData.reverbMix : 0.36; // Pizzicato mix parameter (0-1, wet signal)
     
     const impulseLength = Math.floor(audioBuffer.sampleRate * reverbTime);
     const impulse = audioContext.createBuffer(2, impulseLength, audioBuffer.sampleRate);
@@ -611,9 +611,9 @@ export async function playSequence(sequence: Sequence, pads: PadData[]): Promise
 
       // Apply reverb if troll effect
       if (event.padData.effect === 'troll') {
-        const reverbTime = event.padData.reverbTime !== undefined ? event.padData.reverbTime : 2.0;
-        const reverbDecay = event.padData.reverbDecay !== undefined ? event.padData.reverbDecay : 0.4;
-        const reverbMix = event.padData.reverbMix !== undefined ? event.padData.reverbMix : 0.42;
+        const reverbTime = event.padData.reverbTime !== undefined ? event.padData.reverbTime : 1.7;
+        const reverbDecay = event.padData.reverbDecay !== undefined ? event.padData.reverbDecay : 1.10;
+        const reverbMix = event.padData.reverbMix !== undefined ? event.padData.reverbMix : 0.36;
 
         const convolver = audioContext.createConvolver();
         const impulseLength = Math.floor(audioBuffer.sampleRate * reverbTime);
@@ -753,9 +753,9 @@ export async function renderSequenceToAudio(sequence: Sequence, pads: PadData[])
 
       // Apply reverb if troll effect
       if (event.padData.effect === 'troll') {
-        const reverbTime = event.padData.reverbTime !== undefined ? event.padData.reverbTime : 2.0;
-        const reverbDecay = event.padData.reverbDecay !== undefined ? event.padData.reverbDecay : 0.4;
-        const reverbMix = event.padData.reverbMix !== undefined ? event.padData.reverbMix : 0.42;
+        const reverbTime = event.padData.reverbTime !== undefined ? event.padData.reverbTime : 1.7;
+        const reverbDecay = event.padData.reverbDecay !== undefined ? event.padData.reverbDecay : 1.10;
+        const reverbMix = event.padData.reverbMix !== undefined ? event.padData.reverbMix : 0.36;
 
         const convolver = offlineContext.createConvolver();
         const impulseLength = Math.floor(audioBuffer.sampleRate * reverbTime);
