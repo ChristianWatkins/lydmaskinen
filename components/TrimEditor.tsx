@@ -20,7 +20,7 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
   const [duration, setDuration] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [zoom, setZoom] = useState<number>(1); // 1 = normal, higher = more zoom
-  const [volume, setVolume] = useState<number>(padData.volume !== undefined ? padData.volume : 10);
+  const [volume, setVolume] = useState<number>(padData.volume ?? 10);
   const [isNormalizing, setIsNormalizing] = useState(false);
   const [currentAudioBlob, setCurrentAudioBlob] = useState<Blob | null>(padData.audioBlob || null);
   const startMarkerRef = useRef<HTMLDivElement>(null);
@@ -30,7 +30,12 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
   useEffect(() => {
     if (!waveformRef.current || !currentAudioBlob) return;
 
-    // Create WaveSurfer instance
+    // Clean up previous instance
+    if (wavesurferRef.current) {
+      wavesurferRef.current.destroy();
+    }
+
+    // Create WaveSurfer instance with current zoom
     const wavesurfer = WaveSurfer.create({
       container: waveformRef.current,
       waveColor: '#4f46e5',
@@ -305,7 +310,8 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
               <span className="text-sm font-semibold">Zoom:</span>
               <button
                 onClick={handleZoomOut}
-                className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors"
+                disabled={duration === 0}
+                className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Zoom out"
               >
                 <ZoomOut size={16} />
@@ -313,14 +319,16 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
               <span className="text-sm min-w-[3rem] text-center">{zoom.toFixed(1)}x</span>
               <button
                 onClick={handleZoomIn}
-                className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors"
+                disabled={duration === 0}
+                className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Zoom in"
               >
                 <ZoomIn size={16} />
               </button>
               <button
                 onClick={handleZoomReset}
-                className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors ml-2"
+                disabled={duration === 0 || zoom === 1}
+                className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors ml-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Reset zoom"
               >
                 <Maximize2 size={16} />

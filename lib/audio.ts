@@ -511,7 +511,7 @@ export async function playAudio(padData: PadData): Promise<void> {
       }
 
       // Get volume from padData (0-10 range, convert to 0.0-1.0 for Howler)
-      const volumeRaw = padData.volume !== undefined ? padData.volume : 10;
+      const volumeRaw = padData.volume ?? 10;
       const volume = Math.max(0, Math.min(1.0, volumeRaw / 10));
 
       // Create new Howl instance
@@ -1013,7 +1013,7 @@ export async function saveToStorage(pads: PadData[]): Promise<void> {
         audioBase64,
         effect: pad.effect,
         reverse: pad.reverse,
-        volume: pad.volume !== undefined ? pad.volume : 10,
+        volume: pad.volume ?? 10,
         reverb: pad.reverb !== undefined ? pad.reverb : false,
         reverbTime: pad.reverbTime,
         reverbDecay: pad.reverbDecay,
