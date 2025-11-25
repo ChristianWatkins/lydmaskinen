@@ -19,7 +19,7 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
   const [endTime, setEndTime] = useState<number>(padData.endTime ?? 0);
   const [duration, setDuration] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [zoom, setZoom] = useState<number>(1); // 1 = normal, higher = more zoom
+  const [minPxPerSec, setMinPxPerSec] = useState<number>(100); // Pixels per second for waveform
   const [volume, setVolume] = useState<number>(padData.volume ?? 10);
   const [isNormalizing, setIsNormalizing] = useState(false);
   const [currentAudioBlob, setCurrentAudioBlob] = useState<Blob | null>(padData.audioBlob || null);
@@ -29,17 +29,53 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
   const hasInitializedRef = useRef(false);
   const savedStartTimeRef = useRef<number>(startTime);
   const savedEndTimeRef = useRef<number>(endTime);
+  const isMountedRef = useRef(true);
+  const initialPinchDistanceRef = useRef<number | null>(null);
+  const initialPinchZoomRef = useRef<number>(100);
 
+  // Initialize WaveSurfer (only when audioBlob changes)
   useEffect(() => {
     if (!waveformRef.current || !currentAudioBlob) return;
 
-    // Clean up previous instance
-    if (wavesurferRef.current) {
-      wavesurferRef.current.destroy();
+    isMountedRef.current = true;
+    let audioUrl: string | null = null;
+    let wavesurfer: WaveSurfer | null = null;
+    let isCleanedUp = false;
+
+    // ALWAYS clear the container first to prevent double waveforms (especially in StrictMode)
+    if (waveformRef.current) {
+      waveformRef.current.innerHTML = '';
     }
 
-    // Create WaveSurfer instance with current zoom
-    const wavesurfer = WaveSurfer.create({
+    // Clean up previous instance if it exists
+    if (wavesurferRef.current) {
+      const previousInstance = wavesurferRef.current;
+      wavesurferRef.current = null; // Clear ref first to avoid race conditions
+      
+      // Destroy immediately but catch errors
+      try {
+        if (previousInstance) {
+          // Try to pause first if playing
+          try {
+            if (previousInstance.isPlaying && previousInstance.isPlaying()) {
+              previousInstance.pause();
+            }
+          } catch (e) {
+            // Ignore pause errors
+          }
+          
+          // Destroy with error suppression
+          previousInstance.destroy();
+        }
+      } catch (error: any) {
+        // AbortError and all other cleanup errors are expected and safe to ignore
+        // The instance is being cleaned up anyway, so errors don't matter
+        // We don't log or handle them at all
+      }
+    }
+
+    // Create WaveSurfer instance
+    wavesurfer = WaveSurfer.create({
       container: waveformRef.current,
       waveColor: '#4f46e5',
       progressColor: '#818cf8',
@@ -49,46 +85,150 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
       height: 100,
       normalize: true,
       backend: 'WebAudio',
-      minPxPerSec: 10 * zoom, // Zoom control: higher = more zoom
+      minPxPerSec: minPxPerSec,
     });
 
     wavesurferRef.current = wavesurfer;
 
     // Load audio
-    const audioUrl = URL.createObjectURL(currentAudioBlob);
+    audioUrl = URL.createObjectURL(currentAudioBlob);
     wavesurfer.load(audioUrl);
+
+    // Also listen to decode event as a fallback for duration
+    wavesurfer.on('decode', () => {
+      if (isCleanedUp || !isMountedRef.current || !wavesurferRef.current) return;
+      
+      const dur = wavesurferRef.current.getDuration();
+      if (dur && isFinite(dur) && dur > 0) {
+        // Update duration if it was 0 or invalid
+        if (duration === 0 || !duration) {
+          setDuration(dur);
+        }
+        // Update endTime if it's still 0 and we haven't initialized yet
+        if (!hasInitializedRef.current && (endTime === 0 || !endTime)) {
+          hasInitializedRef.current = true;
+          setStartTime(0);
+          setEndTime(dur);
+          savedStartTimeRef.current = 0;
+          savedEndTimeRef.current = dur;
+        }
+      }
+    });
 
     // Get duration when ready
     wavesurfer.on('ready', () => {
-      const dur = wavesurfer.getDuration();
+      if (isCleanedUp || !isMountedRef.current || !wavesurferRef.current) return;
+      
+      const dur = wavesurferRef.current.getDuration();
+      
+      // Check if duration is valid (not 0, NaN, or Infinity)
+      if (!dur || !isFinite(dur) || dur <= 0) {
+        console.warn('Invalid duration from WaveSurfer:', dur, 'Retrying...');
+        // Retry after a short delay - sometimes duration isn't ready immediately
+        setTimeout(() => {
+          if (wavesurferRef.current && !isCleanedUp && isMountedRef.current) {
+            const retryDur = wavesurferRef.current.getDuration();
+            if (retryDur && isFinite(retryDur) && retryDur > 0) {
+              setDuration(retryDur);
+              if (!hasInitializedRef.current) {
+                hasInitializedRef.current = true;
+                setStartTime(0);
+                setEndTime(retryDur);
+                savedStartTimeRef.current = 0;
+                savedEndTimeRef.current = retryDur;
+              }
+            }
+          }
+        }, 100);
+        return;
+      }
+      
       setDuration(dur);
-      // Only set endTime on first initialization, not when recreating due to zoom
+      // Only set endTime on first initialization
       if (!hasInitializedRef.current) {
         hasInitializedRef.current = true;
-        if (!padData.endTime || endTime === 0) {
-          setEndTime(dur);
+        
+        // Initialize startTime and endTime properly
+        let initialStartTime = padData.startTime ?? 0;
+        let initialEndTime = padData.endTime;
+        
+        // If endTime is not set, undefined, null, or 0, use duration
+        if (initialEndTime === undefined || initialEndTime === null || initialEndTime <= 0) {
+          initialEndTime = dur;
         }
-      } else {
-        // Restore saved startTime and endTime when recreating due to zoom
-        setStartTime(savedStartTimeRef.current);
-        setEndTime(savedEndTimeRef.current);
+        
+        // Ensure values are within valid range
+        initialStartTime = Math.max(0, Math.min(initialStartTime, dur));
+        initialEndTime = Math.max(initialStartTime, Math.min(initialEndTime, dur));
+        
+        // Ensure startTime is less than endTime
+        if (initialStartTime >= initialEndTime) {
+          initialStartTime = 0;
+          initialEndTime = dur;
+        }
+        
+        setStartTime(initialStartTime);
+        setEndTime(initialEndTime);
+        savedStartTimeRef.current = initialStartTime;
+        savedEndTimeRef.current = initialEndTime;
       }
       // Set initial volume
       const volumeValue = volume / 10;
-      wavesurfer.setVolume(volumeValue);
+      wavesurferRef.current.setVolume(volumeValue);
+      // Set initial zoom
+      wavesurferRef.current.zoom(minPxPerSec);
     });
 
     // Handle playback state
-    wavesurfer.on('play', () => setIsPlaying(true));
-    wavesurfer.on('pause', () => setIsPlaying(false));
-    wavesurfer.on('finish', () => setIsPlaying(false));
+    wavesurfer.on('play', () => {
+      if (!isCleanedUp && isMountedRef.current) setIsPlaying(true);
+    });
+    wavesurfer.on('pause', () => {
+      if (!isCleanedUp && isMountedRef.current) setIsPlaying(false);
+    });
+    wavesurfer.on('finish', () => {
+      if (!isCleanedUp && isMountedRef.current) setIsPlaying(false);
+    });
 
     // Cleanup
     return () => {
-      wavesurfer.destroy();
-      URL.revokeObjectURL(audioUrl);
+      isCleanedUp = true;
+      isMountedRef.current = false;
+      
+      // Don't destroy here - let the next effect run handle cleanup
+      // This prevents race conditions with React StrictMode
+      // The container innerHTML will be cleared at the start of the next effect
+      
+      // Clean up URL
+      if (audioUrl) {
+        try {
+          URL.revokeObjectURL(audioUrl);
+        } catch (error) {
+          // Ignore URL revocation errors
+        }
+      }
     };
-  }, [currentAudioBlob, zoom]);
+  }, [currentAudioBlob]);
+
+  // Cleanup WaveSurfer on actual component unmount
+  useEffect(() => {
+    return () => {
+      // Just clear the ref - the instance will be garbage collected
+      // Calling destroy() causes AbortError in React StrictMode
+      wavesurferRef.current = null;
+    };
+  }, []);
+
+  // Update zoom when minPxPerSec changes (only if audio is loaded)
+  useEffect(() => {
+    if (wavesurferRef.current && duration > 0) {
+      try {
+        wavesurferRef.current.zoom(minPxPerSec);
+      } catch {
+        // Ignore zoom errors if audio not ready
+      }
+    }
+  }, [minPxPerSec, duration]);
 
   // Update refs when startTime/endTime change (but don't recreate WaveSurfer)
   useEffect(() => {
@@ -216,31 +356,59 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
   };
 
   const handleZoomIn = () => {
-    setZoom(prev => Math.min(prev + 0.5, 10)); // Max zoom 10x
+    setMinPxPerSec(prev => Math.min(prev + 350, 1000)); // Max 1000 px/sec
   };
 
   const handleZoomOut = () => {
-    setZoom(prev => Math.max(prev - 0.5, 0.5)); // Min zoom 0.5x
+    setMinPxPerSec(prev => Math.max(prev - 100, 10)); // Min 10 px/sec
   };
 
   const handleZoomReset = () => {
-    setZoom(1);
+    setMinPxPerSec(100);
   };
 
   const handleZoomToSelection = () => {
-    if (!containerRef.current || duration === 0 || endTime <= startTime) return;
+    if (!wavesurferRef.current || duration === 0 || endTime <= startTime) return;
     
-    // Calculate zoom level needed to fit the selection (startTime to endTime)
-    const containerWidth = containerRef.current.offsetWidth;
-    const selectionDuration = endTime - startTime;
+    // Jump to 500 px/sec zoom
+    setMinPxPerSec(500);
     
-    // We want the selection to take up about 80% of the container width
-    const targetWidth = containerWidth * 0.8;
-    const pixelsPerSecond = targetWidth / selectionDuration;
-    
-    // Base minPxPerSec is 10, so zoom factor is pixelsPerSecond / 10
-    const calculatedZoom = Math.max(0.5, Math.min(10, pixelsPerSecond / 10));
-    setZoom(calculatedZoom);
+    // Seek to the start of the selection so it's visible
+    setTimeout(() => {
+      if (wavesurferRef.current && duration > 0) {
+        // Seek to slightly before the start marker so it's visible
+        const seekPosition = Math.max(0, (startTime - 0.05) / duration);
+        wavesurferRef.current.seekTo(seekPosition);
+      }
+    }, 50);
+  };
+
+  // Pinch-to-zoom handlers for mobile
+  const getDistance = (touches: React.TouchList) => {
+    const [t1, t2] = [touches[0], touches[1]];
+    return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+  };
+
+  const handlePinchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      initialPinchDistanceRef.current = getDistance(e.touches);
+      initialPinchZoomRef.current = minPxPerSec;
+    }
+  };
+
+  const handlePinchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && initialPinchDistanceRef.current !== null) {
+      e.preventDefault();
+      const currentDistance = getDistance(e.touches);
+      const scale = currentDistance / initialPinchDistanceRef.current;
+      const newZoom = Math.max(10, Math.min(1000, initialPinchZoomRef.current * scale));
+      setMinPxPerSec(Math.round(newZoom));
+    }
+  };
+
+  const handlePinchEnd = () => {
+    initialPinchDistanceRef.current = null;
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -254,12 +422,8 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
     setIsNormalizing(true);
     try {
       const normalizedBlob = await normalizeAudioBlob(currentAudioBlob);
+      // Setting the blob will trigger the useEffect to reload WaveSurfer
       setCurrentAudioBlob(normalizedBlob);
-      // Update the audio URL for preview
-      if (wavesurferRef.current) {
-        const audioUrl = URL.createObjectURL(normalizedBlob);
-        wavesurferRef.current.load(audioUrl);
-      }
     } catch (error) {
       console.error('Error normalizing audio:', error);
       alert('Failed to normalize audio');
@@ -296,7 +460,10 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
             {/* Waveform container */}
             <div 
               ref={containerRef}
-              className="relative mb-4 bg-gray-100 rounded-lg p-4"
+              className="relative mb-4 bg-gray-100 rounded-lg p-4 touch-none"
+              onTouchStart={handlePinchStart}
+              onTouchMove={handlePinchMove}
+              onTouchEnd={handlePinchEnd}
             >
               <div ref={waveformRef} className="w-full" />
               
@@ -349,7 +516,7 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
               >
                 <ZoomOut size={16} />
               </button>
-              <span className="text-sm min-w-[3rem] text-center text-gray-700 font-medium">{zoom.toFixed(1)}x</span>
+              <span className="text-sm min-w-[4rem] text-center text-gray-700 font-medium">{minPxPerSec}</span>
               <button
                 onClick={handleZoomIn}
                 disabled={duration === 0}
@@ -368,7 +535,7 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
               </button>
               <button
                 onClick={handleZoomReset}
-                disabled={duration === 0 || zoom === 1}
+                disabled={duration === 0 || minPxPerSec === 100}
                 className="p-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-gray-400"
                 title="Reset zoom"
               >

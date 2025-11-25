@@ -80,8 +80,8 @@ export default function Pad({
   const handleEnd = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     
-    // Play audio if available
-    if (padData.audioBlob || padData.audioUrl) {
+    // Only play audio if the pad was actually pressed down first
+    if (isPressed && (padData.audioBlob || padData.audioUrl)) {
       console.log('🎵 Playing audio for pad:', padData.id);
       onPlay(padData.id);
     }
