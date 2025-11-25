@@ -26,6 +26,7 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
   const startMarkerRef = useRef<HTMLDivElement>(null);
   const endMarkerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const waveformWrapperRef = useRef<HTMLDivElement>(null);
   const hasInitializedRef = useRef(false);
   const savedStartTimeRef = useRef<number>(startTime);
   const savedEndTimeRef = useRef<number>(endTime);
@@ -258,14 +259,15 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
   }, [startTime, endTime, duration]);
 
   const handleStartMarkerDrag = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!containerRef.current || !wavesurferRef.current || duration === 0) return;
+    if (!waveformWrapperRef.current || !wavesurferRef.current || duration === 0) return;
 
-    const container = containerRef.current;
-    const containerRect = container.getBoundingClientRect();
+    const wrapper = waveformWrapperRef.current;
     
     const updatePosition = (clientX: number) => {
-      const x = clientX - containerRect.left;
-      const percent = Math.max(0, Math.min(100, (x / containerRect.width) * 100));
+      const wrapperRect = wrapper.getBoundingClientRect();
+      const x = clientX - wrapperRect.left;
+      const wrapperWidth = wrapper.offsetWidth;
+      const percent = Math.max(0, Math.min(100, (x / wrapperWidth) * 100));
       const newStartTime = (percent / 100) * duration;
       
       if (newStartTime < endTime) {
@@ -295,14 +297,15 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
   };
 
   const handleEndMarkerDrag = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!containerRef.current || !wavesurferRef.current || duration === 0) return;
+    if (!waveformWrapperRef.current || !wavesurferRef.current || duration === 0) return;
 
-    const container = containerRef.current;
-    const containerRect = container.getBoundingClientRect();
+    const wrapper = waveformWrapperRef.current;
     
     const updatePosition = (clientX: number) => {
-      const x = clientX - containerRect.left;
-      const percent = Math.max(0, Math.min(100, (x / containerRect.width) * 100));
+      const wrapperRect = wrapper.getBoundingClientRect();
+      const x = clientX - wrapperRect.left;
+      const wrapperWidth = wrapper.offsetWidth;
+      const percent = Math.max(0, Math.min(100, (x / wrapperWidth) * 100));
       const newEndTime = (percent / 100) * duration;
       
       if (newEndTime > startTime) {
@@ -365,22 +368,6 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
 
   const handleZoomReset = () => {
     setMinPxPerSec(100);
-  };
-
-  const handleZoomToSelection = () => {
-    if (!wavesurferRef.current || duration === 0 || endTime <= startTime) return;
-    
-    // Jump to 500 px/sec zoom
-    setMinPxPerSec(500);
-    
-    // Seek to the start of the selection so it's visible
-    setTimeout(() => {
-      if (wavesurferRef.current && duration > 0) {
-        // Seek to slightly before the start marker so it's visible
-        const seekPosition = Math.max(0, (startTime - 0.05) / duration);
-        wavesurferRef.current.seekTo(seekPosition);
-      }
-    }, 50);
   };
 
   // Pinch-to-zoom handlers for mobile
@@ -460,49 +447,56 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
             {/* Waveform container */}
             <div 
               ref={containerRef}
-              className="relative mb-4 bg-gray-100 rounded-lg p-4 touch-none"
+              className="relative mb-4 bg-gray-100 rounded-lg p-4 touch-none overflow-x-auto"
               onTouchStart={handlePinchStart}
               onTouchMove={handlePinchMove}
               onTouchEnd={handlePinchEnd}
             >
-              <div ref={waveformRef} className="w-full" />
-              
-              {/* Start marker */}
-              <div
-                ref={startMarkerRef}
-                className="absolute top-0 bottom-0 w-1 bg-green-500 cursor-ew-resize z-10"
-                style={{ left: `${(startTime / duration) * 100}%` }}
-                onMouseDown={handleStartMarkerDrag}
-                onTouchStart={handleStartMarkerDrag}
+              {/* Inner wrapper that scales with zoom */}
+              <div 
+                ref={waveformWrapperRef}
+                className="relative"
+                style={{ width: duration > 0 ? `${duration * minPxPerSec}px` : '100%', minWidth: '100%' }}
               >
-                <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-green-500 text-white text-xs px-1 rounded">
-                  Start
-                </div>
-              </div>
-
-              {/* End marker */}
-              <div
-                ref={endMarkerRef}
-                className="absolute top-0 bottom-0 w-1 bg-red-500 cursor-ew-resize z-10"
-                style={{ left: `${(endTime / duration) * 100}%` }}
-                onMouseDown={handleEndMarkerDrag}
-                onTouchStart={handleEndMarkerDrag}
-              >
-                <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-red-500 text-white text-xs px-1 rounded">
-                  End
-                </div>
-              </div>
-
-              {/* Trimmed region highlight */}
-              {duration > 0 && (
+                <div ref={waveformRef} className="w-full" />
+                
+                {/* Start marker */}
                 <div
-                  className="absolute top-0 bottom-0 bg-blue-200/30 pointer-events-none"
-                  style={{
-                    left: `${(startTime / duration) * 100}%`,
-                    width: `${((endTime - startTime) / duration) * 100}%`,
-                  }}
-                />
-              )}
+                  ref={startMarkerRef}
+                  className="absolute top-0 bottom-0 w-1 bg-green-500 cursor-ew-resize z-10"
+                  style={{ left: `${(startTime / duration) * 100}%` }}
+                  onMouseDown={handleStartMarkerDrag}
+                  onTouchStart={handleStartMarkerDrag}
+                >
+                  <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-green-500 text-white text-xs px-1 rounded whitespace-nowrap">
+                    Start
+                  </div>
+                </div>
+
+                {/* End marker */}
+                <div
+                  ref={endMarkerRef}
+                  className="absolute top-0 bottom-0 w-1 bg-red-500 cursor-ew-resize z-10"
+                  style={{ left: `${(endTime / duration) * 100}%` }}
+                  onMouseDown={handleEndMarkerDrag}
+                  onTouchStart={handleEndMarkerDrag}
+                >
+                  <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-red-500 text-white text-xs px-1 rounded whitespace-nowrap">
+                    End
+                  </div>
+                </div>
+
+                {/* Trimmed region highlight */}
+                {duration > 0 && (
+                  <div
+                    className="absolute top-0 bottom-0 bg-blue-200/30 pointer-events-none"
+                    style={{
+                      left: `${(startTime / duration) * 100}%`,
+                      width: `${((endTime - startTime) / duration) * 100}%`,
+                    }}
+                  />
+                )}
+              </div>
             </div>
 
             {/* Zoom controls */}
@@ -524,14 +518,6 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
                 title="Zoom in"
               >
                 <ZoomIn size={16} />
-              </button>
-              <button
-                onClick={handleZoomToSelection}
-                disabled={duration === 0 || endTime <= startTime}
-                className="p-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg transition-colors ml-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-indigo-300"
-                title="Zoom to selection (fit start/end markers)"
-              >
-                <Maximize2 size={16} />
               </button>
               <button
                 onClick={handleZoomReset}
