@@ -33,7 +33,6 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
       cursorColor: '#e0e7ff',
       barWidth: 2,
       barRadius: 2,
-      responsive: true,
       height: 100,
       normalize: true,
       backend: 'WebAudio',
@@ -156,9 +155,10 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
   };
 
   const handlePreview = () => {
-    if (!wavesurferRef.current) return;
+    if (!wavesurferRef.current || duration === 0) return;
     
-    wavesurferRef.current.seek(startTime / duration);
+    const startRatio = startTime / duration;
+    wavesurferRef.current.seekTo(startRatio);
     wavesurferRef.current.play();
     
     // Stop at endTime
@@ -167,7 +167,7 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
         const currentTime = wavesurferRef.current.getCurrentTime();
         if (currentTime >= endTime) {
           wavesurferRef.current.pause();
-          wavesurferRef.current.seek(startTime / duration);
+          wavesurferRef.current.seekTo(startRatio);
           clearInterval(checkTime);
         }
       }
