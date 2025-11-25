@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { PadData } from '@/types';
 import Pad from '@/components/Pad';
-import { playAudio, saveToStorage, loadFromStorage } from '@/lib/audio';
+import { playAudio, saveToStorage, loadFromStorage, blobToBase64, base64ToBlob } from '@/lib/audio';
+import { Save, FolderOpen, RotateCcw } from 'lucide-react';
 
 export default function Home() {
   const [pads, setPads] = useState<PadData[]>(() => {
@@ -117,6 +118,109 @@ export default function Home() {
     );
   };
 
+  const handleSaveSet = async () => {
+    const setName = prompt('Enter a name for this set:');
+    if (!setName) return;
+    
+    // Convert pads to storage format (with base64 audio)
+    const padsToSave = await Promise.all(
+      pads.map(async (pad) => {
+        let audioBase64: string | undefined;
+        if (pad.audioBlob) {
+          audioBase64 = await blobToBase64(pad.audioBlob);
+        }
+        
+        return {
+          id: pad.id,
+          audioBase64,
+          effect: pad.effect,
+          reverse: pad.reverse,
+          volume: pad.volume !== undefined ? pad.volume : 10,
+          reverb: pad.reverb !== undefined ? pad.reverb : false,
+          reverbTime: pad.reverbTime,
+          reverbDecay: pad.reverbDecay,
+          reverbMix: pad.reverbMix,
+        };
+      })
+    );
+    
+    const setData = {
+      name: setName,
+      pads: padsToSave,
+      timestamp: new Date().toISOString(),
+    };
+    
+    const savedSets = JSON.parse(localStorage.getItem('mpc-saved-sets') || '[]');
+    // Remove existing set with same name if it exists
+    const filteredSets = savedSets.filter((s: any) => s.name !== setName);
+    filteredSets.push(setData);
+    localStorage.setItem('mpc-saved-sets', JSON.stringify(filteredSets));
+    
+    alert(`Set "${setName}" saved!`);
+  };
+
+  const handleLoadSet = () => {
+    const savedSets = JSON.parse(localStorage.getItem('mpc-saved-sets') || '[]');
+    
+    if (savedSets.length === 0) {
+      alert('No saved sets found!');
+      return;
+    }
+    
+    const setName = prompt(`Enter set name to load (Available: ${savedSets.map((s: any) => s.name).join(', ')}):`);
+    if (!setName) return;
+    
+    const setToLoad = savedSets.find((s: any) => s.name === setName);
+    if (!setToLoad) {
+      alert(`Set "${setName}" not found!`);
+      return;
+    }
+    
+    if (confirm(`Load set "${setName}"? This will replace your current pads.`)) {
+      // Restore pads from saved format (convert base64 back to blob)
+      const restoredPads = setToLoad.pads.map((savedPad: any) => {
+        let audioBlob: Blob | undefined;
+        let audioUrl: string | undefined;
+        
+        if (savedPad.audioBase64) {
+          audioBlob = base64ToBlob(savedPad.audioBase64);
+          audioUrl = URL.createObjectURL(audioBlob);
+        }
+        
+        return {
+          id: savedPad.id,
+          audioBlob,
+          audioUrl,
+          effect: savedPad.effect || 'none',
+          reverse: savedPad.reverse || false,
+          volume: savedPad.volume !== undefined ? savedPad.volume : 10,
+          reverb: savedPad.reverb !== undefined ? savedPad.reverb : false,
+          reverbTime: savedPad.reverbTime,
+          reverbDecay: savedPad.reverbDecay,
+          reverbMix: savedPad.reverbMix,
+        };
+      });
+      
+      setPads(restoredPads);
+      alert(`Set "${setName}" loaded!`);
+    }
+  };
+
+  const handleReset = () => {
+    if (confirm('Reset all pads? This will clear all audio and settings.')) {
+      const resetPads = Array.from({ length: 6 }, (_, i) => ({
+        id: `pad-${i}`,
+        effect: 'none' as const,
+        reverse: false,
+        volume: 10,
+        reverb: false,
+      }));
+      setPads(resetPads);
+      localStorage.removeItem('mpc-pads');
+      alert('All pads reset!');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-orange-100 p-4">
       <div className="max-w-md mx-auto">
@@ -134,6 +238,36 @@ export default function Home() {
               isPlaying={playingPadId === pad.id}
             />
           ))}
+        </div>
+
+        {/* Control buttons - Bottom */}
+        <div className="flex justify-center gap-4 mt-6">
+          {/* Save Set */}
+          <button
+            onClick={handleSaveSet}
+            className="flex flex-col items-center gap-1 px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg shadow-lg transition-all active:scale-95"
+          >
+            <Save size={24} strokeWidth={2} />
+            <span className="text-xs font-semibold">Save</span>
+          </button>
+
+          {/* Load Set */}
+          <button
+            onClick={handleLoadSet}
+            className="flex flex-col items-center gap-1 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg shadow-lg transition-all active:scale-95"
+          >
+            <FolderOpen size={24} strokeWidth={2} />
+            <span className="text-xs font-semibold">Load</span>
+          </button>
+
+          {/* Reset */}
+          <button
+            onClick={handleReset}
+            className="flex flex-col items-center gap-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg shadow-lg transition-all active:scale-95"
+          >
+            <RotateCcw size={24} strokeWidth={2} />
+            <span className="text-xs font-semibold">Reset</span>
+          </button>
         </div>
 
       </div>

@@ -538,7 +538,7 @@ async function playAudioWithReverb(padData: PadData): Promise<void> {
 /**
  * Converts Blob to base64 string
  */
-async function blobToBase64(blob: Blob): Promise<string> {
+export async function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -554,7 +554,7 @@ async function blobToBase64(blob: Blob): Promise<string> {
 /**
  * Converts base64 string to Blob
  */
-function base64ToBlob(base64: string, mimeType: string = 'audio/webm'): Blob {
+export function base64ToBlob(base64: string, mimeType: string = 'audio/webm'): Blob {
   const byteCharacters = atob(base64);
   const byteNumbers = new Array(byteCharacters.length);
   for (let i = 0; i < byteCharacters.length; i++) {
