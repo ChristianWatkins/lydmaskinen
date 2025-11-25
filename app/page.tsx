@@ -19,6 +19,7 @@ export default function Home() {
   });
   const [recordingPadId, setRecordingPadId] = useState<string | null>(null);
   const [playingPadId, setPlayingPadId] = useState<string | null>(null);
+  const [showLoadModal, setShowLoadModal] = useState(false);
 
   // Request microphone permission on mount to reduce notification spam
   useEffect(() => {
@@ -167,10 +168,13 @@ export default function Home() {
       return;
     }
     
-    const setName = prompt(`Enter set name to load (Available: ${savedSets.map((s: any) => s.name).join(', ')}):`);
-    if (!setName) return;
-    
+    setShowLoadModal(true);
+  };
+
+  const loadSetByName = (setName: string) => {
+    const savedSets = JSON.parse(localStorage.getItem('mpc-saved-sets') || '[]');
     const setToLoad = savedSets.find((s: any) => s.name === setName);
+    
     if (!setToLoad) {
       alert(`Set "${setName}" not found!`);
       return;
@@ -202,7 +206,17 @@ export default function Home() {
       });
       
       setPads(restoredPads);
+      setShowLoadModal(false);
       alert(`Set "${setName}" loaded!`);
+    }
+  };
+
+  const deleteSet = (setName: string) => {
+    if (confirm(`Delete set "${setName}"?`)) {
+      const savedSets = JSON.parse(localStorage.getItem('mpc-saved-sets') || '[]');
+      const filteredSets = savedSets.filter((s: any) => s.name !== setName);
+      localStorage.setItem('mpc-saved-sets', JSON.stringify(filteredSets));
+      alert(`Set "${setName}" deleted!`);
     }
   };
 
@@ -269,6 +283,67 @@ export default function Home() {
             <span className="text-xs font-semibold">Reset</span>
           </button>
         </div>
+
+        {/* Load Set Modal */}
+        {showLoadModal && (
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowLoadModal(false)}
+          >
+            <div 
+              className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-xl font-bold mb-4">Load Set</h2>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {JSON.parse(localStorage.getItem('mpc-saved-sets') || '[]').length === 0 ? (
+                  <div className="text-center py-4 text-gray-500">No saved sets found</div>
+                ) : (
+                  JSON.parse(localStorage.getItem('mpc-saved-sets') || '[]').map((set: any) => (
+                    <div 
+                      key={set.name}
+                      className="flex items-center justify-between p-3 bg-gray-100 rounded-lg hover:bg-green-100 cursor-pointer transition-colors border-2 border-transparent hover:border-green-500"
+                      onClick={() => loadSetByName(set.name)}
+                    >
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-800">{set.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(set.timestamp).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            loadSetByName(set.name);
+                          }}
+                          className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded transition-colors"
+                        >
+                          Load
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteSet(set.name);
+                          }}
+                          className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <button
+                onClick={() => setShowLoadModal(false)}
+                className="mt-4 w-full px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
       </div>
 
