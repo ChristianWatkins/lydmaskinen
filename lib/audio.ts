@@ -39,7 +39,7 @@ export async function unlockAudio(): Promise<boolean> {
     isAudioUnlocked = true;
     console.log('✅ Audio unlocked successfully with Howler.js!');
     return true;
-  } catch (error) {
+        } catch (error) {
     console.error('❌ Failed to unlock audio:', error);
     return false;
   }
@@ -116,7 +116,7 @@ export async function stopRecording(): Promise<Blob | null> {
     }
 
     const mediaRecorder = currentMediaRecorder;
-
+    
     if (mediaRecorder.state === 'inactive') {
       resolve(null);
       return;
@@ -127,7 +127,7 @@ export async function stopRecording(): Promise<Blob | null> {
         currentStream.getTracks().forEach((track) => track.stop());
         currentStream = null;
       }
-
+      
       if (recordingChunks.length > 0) {
         const originalBlob = new Blob(recordingChunks, { type: 'audio/webm' });
         currentMediaRecorder = null;
@@ -173,7 +173,7 @@ async function applyReverbToBlob(blob: Blob): Promise<Blob> {
     
     // Create offline context for rendering
     const offlineContext = new OfflineAudioContext(
-      audioBuffer.numberOfChannels,
+    audioBuffer.numberOfChannels,
       audioBuffer.length + Math.floor(audioBuffer.sampleRate * 0.5), // Add space for reverb tail
       audioBuffer.sampleRate
     );
@@ -245,11 +245,11 @@ async function reverseAudioBlob(blob: Blob): Promise<Blob> {
     
     // Create reversed buffer
     const reversedBuffer = audioContext.createBuffer(
-      audioBuffer.numberOfChannels,
-      audioBuffer.length,
-      audioBuffer.sampleRate
-    );
-    
+    audioBuffer.numberOfChannels,
+    audioBuffer.length,
+    audioBuffer.sampleRate
+  );
+  
     // Reverse each channel
     for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
       const channelData = audioBuffer.getChannelData(channel);
@@ -436,7 +436,7 @@ async function playAudioWithReverb(padData: PadData): Promise<void> {
 
   try {
     let audioBlob = padData.audioBlob!;
-    
+
     // Apply reverse if needed
     if (padData.reverse) {
       console.log('🔄 Reversing audio...');
@@ -462,14 +462,15 @@ async function playAudioWithReverb(padData: PadData): Promise<void> {
 
     // Create source
     const source = audioContext.createBufferSource();
-    source.buffer = audioBuffer;
+        source.buffer = audioBuffer;
     source.playbackRate.value = rate;
 
     // Create reverb using Pizzicato.js algorithm
     const convolver = audioContext.createConvolver();
-    const reverbTime = 2.0; // seconds (Pizzicato time parameter)
-    const reverbDecay = 0.4; // Pizzicato decay parameter (0-10, default 0.01) - lower = faster fade
-    const reverbMix = 0.42; // Pizzicato mix parameter (0-1, wet signal)
+    // Use pad-specific settings or defaults
+    const reverbTime = padData.reverbTime !== undefined ? padData.reverbTime : 2.0; // seconds (Pizzicato time parameter)
+    const reverbDecay = padData.reverbDecay !== undefined ? padData.reverbDecay : 0.4; // Pizzicato decay parameter (0-10, default 0.01) - lower = faster fade
+    const reverbMix = padData.reverbMix !== undefined ? padData.reverbMix : 0.42; // Pizzicato mix parameter (0-1, wet signal)
     
     const impulseLength = Math.floor(audioBuffer.sampleRate * reverbTime);
     const impulse = audioContext.createBuffer(2, impulseLength, audioBuffer.sampleRate);
@@ -515,11 +516,11 @@ async function playAudioWithReverb(padData: PadData): Promise<void> {
     const totalDuration = sourceDuration + reverbTailDuration;
 
     return new Promise((resolve) => {
-      source.onended = () => {
+        source.onended = () => {
         console.log('✓ Source ended, reverb tail continues...');
-      };
-
-      source.start(0);
+        };
+        
+        source.start(0);
       console.log('▶️ Audio with reverb started');
 
       // Resolve after reverb tail finishes
@@ -568,14 +569,14 @@ function base64ToBlob(base64: string, mimeType: string = 'audio/webm'): Blob {
  */
 export async function saveToStorage(pads: PadData[]): Promise<void> {
   if (typeof window === 'undefined') return;
-
+  
   const dataToSave = await Promise.all(
     pads.map(async (pad) => {
       let audioBase64: string | undefined;
       if (pad.audioBlob) {
         audioBase64 = await blobToBase64(pad.audioBlob);
       }
-
+      
       return {
         id: pad.id,
         audioBase64,
@@ -583,10 +584,13 @@ export async function saveToStorage(pads: PadData[]): Promise<void> {
         reverse: pad.reverse,
         volume: pad.volume !== undefined ? pad.volume : 10,
         reverb: pad.reverb !== undefined ? pad.reverb : false,
+        reverbTime: pad.reverbTime,
+        reverbDecay: pad.reverbDecay,
+        reverbMix: pad.reverbMix,
       };
     })
   );
-
+  
   localStorage.setItem('mpc-pads', JSON.stringify(dataToSave));
 }
 
@@ -595,10 +599,10 @@ export async function saveToStorage(pads: PadData[]): Promise<void> {
  */
 export function loadFromStorage(): Partial<PadData>[] {
   if (typeof window === 'undefined') return [];
-
+  
   const stored = localStorage.getItem('mpc-pads');
   if (!stored) return [];
-
+  
   try {
     const parsed = JSON.parse(stored);
     return parsed.map((item: any) => {
@@ -608,13 +612,16 @@ export function loadFromStorage(): Partial<PadData>[] {
         reverse: item.reverse || false,
         volume: item.volume !== undefined ? item.volume : 10,
         reverb: item.reverb !== undefined ? item.reverb : false,
+        reverbTime: item.reverbTime,
+        reverbDecay: item.reverbDecay,
+        reverbMix: item.reverbMix,
       };
-
+      
       if (item.audioBase64) {
         result.audioBlob = base64ToBlob(item.audioBase64);
         result.audioUrl = URL.createObjectURL(result.audioBlob);
       }
-
+      
       return result;
     });
   } catch {

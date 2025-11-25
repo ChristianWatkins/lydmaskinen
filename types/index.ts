@@ -6,5 +6,8 @@ export interface PadData {
   reverse: boolean;
   volume: number; // 0 to 10
   reverb: boolean;
+  reverbTime?: number; // seconds (Pizzicato time parameter)
+  reverbDecay?: number; // Pizzicato decay parameter (0-10)
+  reverbMix?: number; // Pizzicato mix parameter (0-1, wet signal)
 }
 
