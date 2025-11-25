@@ -282,13 +282,13 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Trim Audio</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <h2 className="text-xl font-bold text-gray-900">Edit Audio</h2>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-lg text-gray-900 transition-colors cursor-pointer"
+            >
+              <X size={20} />
+            </button>
         </div>
 
         {currentAudioBlob ? (
@@ -344,7 +344,7 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
               <button
                 onClick={handleZoomOut}
                 disabled={duration === 0}
-                className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-blue-300"
+                className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-blue-300"
                 title="Zoom out"
               >
                 <ZoomOut size={16} />
@@ -353,7 +353,7 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
               <button
                 onClick={handleZoomIn}
                 disabled={duration === 0}
-                className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-blue-300"
+                className="p-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-blue-300"
                 title="Zoom in"
               >
                 <ZoomIn size={16} />
@@ -361,7 +361,7 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
               <button
                 onClick={handleZoomToSelection}
                 disabled={duration === 0 || endTime <= startTime}
-                className="p-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg transition-colors ml-2 disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-300"
+                className="p-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg transition-colors ml-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-indigo-300"
                 title="Zoom to selection (fit start/end markers)"
               >
                 <Maximize2 size={16} />
@@ -369,7 +369,7 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
               <button
                 onClick={handleZoomReset}
                 disabled={duration === 0 || zoom === 1}
-                className="p-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-gray-400"
+                className="p-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-gray-400"
                 title="Reset zoom"
               >
                 1x
@@ -419,7 +419,7 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
               <button
                 onClick={handlePreview}
                 disabled={isPlaying}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 <Play size={16} />
                 Preview
@@ -427,7 +427,7 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
               <button
                 onClick={handleNormalize}
                 disabled={isNormalizing}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 title="Normalize audio (permanently adjust volume to maximum)"
               >
                 <Maximize2 size={16} />
@@ -435,14 +435,14 @@ export default function TrimEditor({ padData, onClose, onSave }: TrimEditorProps
               </button>
               <button
                 onClick={handleSave}
-                className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors cursor-pointer"
               >
                 <Save size={16} />
                 Save
               </button>
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg transition-colors"
+                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg transition-colors cursor-pointer"
               >
                 Cancel
               </button>
