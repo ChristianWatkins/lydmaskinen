@@ -1,4 +1,4 @@
-import { PadData } from '@/types';
+import { PadData, Sequence, SequenceEvent } from '@/types';
 import { Howl } from 'howler';
 import Pizzicato from 'pizzicato';
 
@@ -531,6 +531,283 @@ async function playAudioWithReverb(padData: PadData): Promise<void> {
     });
   } catch (error) {
     console.error('❌ Error in playAudioWithReverb:', error);
+    throw error;
+  }
+}
+
+/**
+ * Plays a sequence with precise timing using Web Audio API
+ * Returns a cleanup function to stop playback
+ */
+export async function playSequence(sequence: Sequence, pads: PadData[]): Promise<() => void> {
+  const audioContext = getWebAudioContext();
+  
+  // Ensure context is running
+  if (audioContext.state === 'suspended') {
+    await audioContext.resume();
+  }
+
+  // Store active sources for cleanup
+  const activeSources: AudioBufferSourceNode[] = [];
+  const activeNodes: AudioNode[] = [];
+
+  try {
+    // Step 1: Pre-load all audio buffers
+    const bufferMap = new Map<string, AudioBuffer>();
+    
+    for (const event of sequence.events) {
+      const pad = pads.find(p => p.id === event.padId);
+      if (!pad || !pad.audioBlob) {
+        console.warn(`Skipping event for pad ${event.padId} - no audio`);
+        continue;
+      }
+
+      if (!bufferMap.has(event.padId)) {
+        let audioBlob = pad.audioBlob;
+        
+        // Pre-process reverse if needed
+        if (event.padData.reverse) {
+          audioBlob = await reverseAudioBlob(audioBlob);
+        }
+        
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        bufferMap.set(event.padId, audioBuffer);
+      }
+    }
+
+    // Step 2: Get playback start time
+    const playbackStartTime = audioContext.currentTime;
+
+    // Step 3: Schedule all sounds synchronously
+    for (const event of sequence.events) {
+      const audioBuffer = bufferMap.get(event.padId);
+      if (!audioBuffer) continue;
+
+      // Convert timestamp from milliseconds to seconds
+      const relativeSeconds = event.timestamp / 1000;
+      const scheduleTime = playbackStartTime + relativeSeconds;
+
+      // Create source
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+
+      // Calculate playback rate based on effect
+      let rate = 1.0;
+      if (event.padData.effect === 'smurf') {
+        rate = 1.5;
+      } else if (event.padData.effect === 'troll') {
+        rate = 0.6;
+      }
+      source.playbackRate.value = rate;
+
+      // Get volume
+      const volumeRaw = event.padData.volume !== undefined ? event.padData.volume : 10;
+      const volume = Math.max(0, Math.min(1.0, volumeRaw / 10));
+
+      // Create gain node for volume
+      const gainNode = audioContext.createGain();
+      gainNode.gain.value = volume;
+
+      // Apply reverb if troll effect
+      if (event.padData.effect === 'troll') {
+        const reverbTime = event.padData.reverbTime !== undefined ? event.padData.reverbTime : 2.0;
+        const reverbDecay = event.padData.reverbDecay !== undefined ? event.padData.reverbDecay : 0.4;
+        const reverbMix = event.padData.reverbMix !== undefined ? event.padData.reverbMix : 0.42;
+
+        const convolver = audioContext.createConvolver();
+        const impulseLength = Math.floor(audioBuffer.sampleRate * reverbTime);
+        const impulse = audioContext.createBuffer(2, impulseLength, audioBuffer.sampleRate);
+
+        const decayFactor = Math.max(0.01, Math.min(10, reverbDecay));
+        const decayExponent = 1 / (1 + decayFactor);
+
+        for (let channel = 0; channel < impulse.numberOfChannels; channel++) {
+          const channelData = impulse.getChannelData(channel);
+          for (let i = 0; i < impulseLength; i++) {
+            const normalizedPosition = i / impulseLength;
+            const decay = Math.pow(1 - normalizedPosition, decayExponent);
+            channelData[i] = (Math.random() * 2 - 1) * decay;
+          }
+        }
+
+        convolver.buffer = impulse;
+
+        const dryGain = audioContext.createGain();
+        const wetGain = audioContext.createGain();
+        const masterGain = audioContext.createGain();
+
+        dryGain.gain.value = 1 - reverbMix;
+        wetGain.gain.value = reverbMix;
+        masterGain.gain.value = volume;
+
+        source.connect(dryGain);
+        source.connect(convolver);
+        convolver.connect(wetGain);
+        dryGain.connect(masterGain);
+        wetGain.connect(masterGain);
+        masterGain.connect(audioContext.destination);
+
+        activeNodes.push(convolver, dryGain, wetGain, masterGain);
+      } else {
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        activeNodes.push(gainNode);
+      }
+
+      activeSources.push(source);
+      source.start(scheduleTime);
+    }
+
+    // Return cleanup function
+    return () => {
+      activeSources.forEach(source => {
+        try {
+          source.stop();
+        } catch (e) {
+          // Source may have already stopped
+        }
+      });
+    };
+  } catch (error) {
+    console.error('Error playing sequence:', error);
+    // Cleanup on error
+    activeSources.forEach(source => {
+      try {
+        source.stop();
+      } catch (e) {
+        // Ignore
+      }
+    });
+    throw error;
+  }
+}
+
+/**
+ * Renders a sequence to an audio file using OfflineAudioContext
+ */
+export async function renderSequenceToAudio(sequence: Sequence, pads: PadData[]): Promise<Blob> {
+  const sampleRate = 44100;
+  const durationSeconds = sequence.endTime / 1000;
+  // Add buffer for reverb tails (max reverb time is typically 2-3 seconds)
+  const bufferSeconds = 3;
+  const totalDurationSeconds = durationSeconds + bufferSeconds;
+  
+  // Create OfflineAudioContext
+  const offlineContext = new OfflineAudioContext(2, totalDurationSeconds * sampleRate, sampleRate);
+
+  try {
+    // Step 1: Pre-load and pre-process all audio buffers
+    const bufferMap = new Map<string, AudioBuffer>();
+    
+    for (const event of sequence.events) {
+      const pad = pads.find(p => p.id === event.padId);
+      if (!pad || !pad.audioBlob) {
+        console.warn(`Skipping event for pad ${event.padId} - no audio`);
+        continue;
+      }
+
+      if (!bufferMap.has(event.padId)) {
+        let audioBlob = pad.audioBlob;
+        
+        // Pre-process reverse if needed
+        if (event.padData.reverse) {
+          audioBlob = await reverseAudioBlob(audioBlob);
+        }
+        
+        // Create temporary context to decode
+        const tempContext = new AudioContext({ sampleRate });
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const audioBuffer = await tempContext.decodeAudioData(arrayBuffer);
+        await tempContext.close();
+        
+        bufferMap.set(event.padId, audioBuffer);
+      }
+    }
+
+    // Step 2: Schedule all sounds at correct sample offsets
+    for (const event of sequence.events) {
+      const audioBuffer = bufferMap.get(event.padId);
+      if (!audioBuffer) continue;
+
+      // Convert timestamp to sample offset
+      const sampleOffset = (event.timestamp / 1000) * sampleRate;
+      const scheduleTime = sampleOffset / sampleRate;
+
+      // Create source
+      const source = offlineContext.createBufferSource();
+      source.buffer = audioBuffer;
+
+      // Calculate playback rate
+      let rate = 1.0;
+      if (event.padData.effect === 'smurf') {
+        rate = 1.5;
+      } else if (event.padData.effect === 'troll') {
+        rate = 0.6;
+      }
+      source.playbackRate.value = rate;
+
+      // Get volume
+      const volumeRaw = event.padData.volume !== undefined ? event.padData.volume : 10;
+      const volume = Math.max(0, Math.min(1.0, volumeRaw / 10));
+
+      // Apply reverb if troll effect
+      if (event.padData.effect === 'troll') {
+        const reverbTime = event.padData.reverbTime !== undefined ? event.padData.reverbTime : 2.0;
+        const reverbDecay = event.padData.reverbDecay !== undefined ? event.padData.reverbDecay : 0.4;
+        const reverbMix = event.padData.reverbMix !== undefined ? event.padData.reverbMix : 0.42;
+
+        const convolver = offlineContext.createConvolver();
+        const impulseLength = Math.floor(audioBuffer.sampleRate * reverbTime);
+        const impulse = offlineContext.createBuffer(2, impulseLength, audioBuffer.sampleRate);
+
+        const decayFactor = Math.max(0.01, Math.min(10, reverbDecay));
+        const decayExponent = 1 / (1 + decayFactor);
+
+        for (let channel = 0; channel < impulse.numberOfChannels; channel++) {
+          const channelData = impulse.getChannelData(channel);
+          for (let i = 0; i < impulseLength; i++) {
+            const normalizedPosition = i / impulseLength;
+            const decay = Math.pow(1 - normalizedPosition, decayExponent);
+            channelData[i] = (Math.random() * 2 - 1) * decay;
+          }
+        }
+
+        convolver.buffer = impulse;
+
+        const dryGain = offlineContext.createGain();
+        const wetGain = offlineContext.createGain();
+        const masterGain = offlineContext.createGain();
+
+        dryGain.gain.value = 1 - reverbMix;
+        wetGain.gain.value = reverbMix;
+        masterGain.gain.value = volume;
+
+        source.connect(dryGain);
+        source.connect(convolver);
+        convolver.connect(wetGain);
+        dryGain.connect(masterGain);
+        wetGain.connect(masterGain);
+        masterGain.connect(offlineContext.destination);
+      } else {
+        const gainNode = offlineContext.createGain();
+        gainNode.gain.value = volume;
+        source.connect(gainNode);
+        gainNode.connect(offlineContext.destination);
+      }
+
+      source.start(scheduleTime);
+    }
+
+    // Step 3: Render to AudioBuffer
+    const renderedBuffer = await offlineContext.startRendering();
+
+    // Step 4: Convert to WAV blob
+    const wavBlob = audioBufferToWavBlob(renderedBuffer);
+    
+    return wavBlob;
+  } catch (error) {
+    console.error('Error rendering sequence:', error);
     throw error;
   }
 }

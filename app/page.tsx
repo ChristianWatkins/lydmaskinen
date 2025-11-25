@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { PadData } from '@/types';
+import { useState, useEffect, useRef } from 'react';
+import { PadData, Sequence } from '@/types';
 import Pad from '@/components/Pad';
-import { playAudio, saveToStorage, loadFromStorage, blobToBase64, base64ToBlob } from '@/lib/audio';
-import { Save, FolderOpen, RotateCcw } from 'lucide-react';
+import { playAudio, saveToStorage, loadFromStorage, blobToBase64, base64ToBlob, playSequence, renderSequenceToAudio } from '@/lib/audio';
+import { Save, FolderOpen, RotateCcw, Play, Square, Circle } from 'lucide-react';
 
 export default function Home() {
   const [pads, setPads] = useState<PadData[]>(() => {
@@ -20,6 +20,13 @@ export default function Home() {
   const [recordingPadId, setRecordingPadId] = useState<string | null>(null);
   const [playingPadId, setPlayingPadId] = useState<string | null>(null);
   const [showLoadModal, setShowLoadModal] = useState(false);
+  
+  // Sequence recording state
+  const [isRecordingSequence, setIsRecordingSequence] = useState(false);
+  const [sequenceStartTime, setSequenceStartTime] = useState<number | null>(null);
+  const [sequence, setSequence] = useState<Sequence | null>(null);
+  const [isPlayingSequence, setIsPlayingSequence] = useState(false);
+  const sequenceCleanupRef = useRef<(() => void) | null>(null);
 
   // Request microphone permission on mount to reduce notification spam
   useEffect(() => {
@@ -95,6 +102,31 @@ export default function Home() {
     if (!pad.audioBlob) {
       console.warn('No audio recorded for pad:', padId);
       return;
+    }
+    
+    // If recording sequence, record this event
+    if (isRecordingSequence && sequenceStartTime !== null) {
+      const relativeTimestamp = performance.now() - sequenceStartTime;
+      const event = {
+        padId,
+        timestamp: relativeTimestamp,
+        padData: { ...pad }, // Snapshot of padData
+      };
+      
+      setSequence(prev => {
+        if (!prev) {
+          return {
+            events: [event],
+            startTime: 0,
+            endTime: relativeTimestamp,
+          };
+        }
+        return {
+          ...prev,
+          events: [...prev.events, event],
+          endTime: relativeTimestamp,
+        };
+      });
     }
     
     console.log('Playing pad with audio blob size:', pad.audioBlob.size);
@@ -235,6 +267,76 @@ export default function Home() {
     }
   };
 
+  const handleRecordSequence = () => {
+    setIsRecordingSequence(true);
+    setSequenceStartTime(performance.now());
+    setSequence({
+      events: [],
+      startTime: 0,
+      endTime: 0,
+    });
+  };
+
+  const handleStopSequence = () => {
+    if (isRecordingSequence) {
+      setIsRecordingSequence(false);
+      setSequenceStartTime(null);
+    }
+    
+    if (isPlayingSequence && sequenceCleanupRef.current) {
+      sequenceCleanupRef.current();
+      sequenceCleanupRef.current = null;
+      setIsPlayingSequence(false);
+    }
+  };
+
+  const handlePlaySequence = async () => {
+    if (!sequence || sequence.events.length === 0) {
+      alert('No sequence recorded!');
+      return;
+    }
+
+    setIsPlayingSequence(true);
+    try {
+      const cleanup = await playSequence(sequence, pads);
+      sequenceCleanupRef.current = cleanup;
+      
+      // Wait for sequence to finish (approximate)
+      const duration = sequence.endTime / 1000;
+      setTimeout(() => {
+        setIsPlayingSequence(false);
+        sequenceCleanupRef.current = null;
+      }, duration * 1000 + 1000); // Add 1 second buffer for reverb tails
+    } catch (error) {
+      console.error('Error playing sequence:', error);
+      setIsPlayingSequence(false);
+      sequenceCleanupRef.current = null;
+    }
+  };
+
+  const handleRenderSequence = async () => {
+    if (!sequence || sequence.events.length === 0) {
+      alert('No sequence recorded!');
+      return;
+    }
+
+    try {
+      const blob = await renderSequenceToAudio(sequence, pads);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sequence-${new Date().getTime()}.wav`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      alert('Sequence rendered and downloaded!');
+    } catch (error) {
+      console.error('Error rendering sequence:', error);
+      alert('Error rendering sequence. Check console for details.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-orange-100 p-4">
       <div className="max-w-md mx-auto">
@@ -253,6 +355,65 @@ export default function Home() {
             />
           ))}
         </div>
+
+        {/* Sequence Status Indicator */}
+        {(isRecordingSequence || isPlayingSequence) && (
+          <div className="text-center mb-2">
+            <span className={`text-sm font-semibold ${isRecordingSequence ? 'text-red-600' : 'text-green-600'}`}>
+              {isRecordingSequence ? '● Recording sequence...' : '▶ Playing sequence...'}
+            </span>
+          </div>
+        )}
+
+        {/* Sequence Transport Controls */}
+        <div className="flex justify-center gap-4 mt-6 mb-4">
+          {/* Record Sequence */}
+          <button
+            onClick={handleRecordSequence}
+            disabled={isRecordingSequence || isPlayingSequence}
+            className={`flex flex-col items-center gap-1 px-4 py-3 rounded-lg shadow-lg transition-all active:scale-95 ${
+              isRecordingSequence
+                ? 'bg-red-600 text-white animate-pulse'
+                : 'bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed'
+            }`}
+          >
+            <Circle size={24} strokeWidth={2} fill={isRecordingSequence ? 'white' : 'none'} />
+            <span className="text-xs font-semibold">Record</span>
+          </button>
+
+          {/* Stop */}
+          <button
+            onClick={handleStopSequence}
+            disabled={!isRecordingSequence && !isPlayingSequence}
+            className="flex flex-col items-center gap-1 px-4 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Square size={24} strokeWidth={2} />
+            <span className="text-xs font-semibold">Stop</span>
+          </button>
+
+          {/* Play Sequence */}
+          <button
+            onClick={handlePlaySequence}
+            disabled={!sequence || sequence.events.length === 0 || isRecordingSequence || isPlayingSequence}
+            className="flex flex-col items-center gap-1 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Play size={24} strokeWidth={2} />
+            <span className="text-xs font-semibold">Play</span>
+          </button>
+        </div>
+
+        {/* Render Sequence Button */}
+        {sequence && sequence.events.length > 0 && (
+          <div className="flex justify-center mb-4">
+            <button
+              onClick={handleRenderSequence}
+              disabled={isRecordingSequence || isPlayingSequence}
+              className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Render Sequence ({sequence.events.length} events, {(sequence.endTime / 1000).toFixed(1)}s)
+            </button>
+          </div>
+        )}
 
         {/* Control buttons - Bottom */}
         <div className="flex justify-center gap-4 mt-6">

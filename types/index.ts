@@ -11,3 +11,15 @@ export interface PadData {
   reverbMix?: number; // Pizzicato mix parameter (0-1, wet signal)
 }
 
+export interface SequenceEvent {
+  padId: string;
+  timestamp: number; // Relative time in milliseconds from sequence start
+  padData: PadData; // Snapshot of padData at time of play
+}
+
+export interface Sequence {
+  events: SequenceEvent[];
+  startTime: number; // Always 0 (recording start reference)
+  endTime: number; // Duration in milliseconds
+}
+
